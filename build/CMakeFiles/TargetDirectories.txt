@@ -1,5 +1,0 @@
-/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/build/CMakeFiles/edit_cache.dir
-/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/build/CMakeFiles/rebuild_cache.dir
-/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/build/CMakeFiles/CMMonitorDictionaries.dir
-/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/build/CMakeFiles/CMMonitor.dir
-/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/build/CMakeFiles/CMMonitorDict.dir

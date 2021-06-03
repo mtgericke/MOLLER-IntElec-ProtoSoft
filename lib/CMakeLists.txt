@@ -47,7 +47,6 @@ file(GLOB libheaders ${PROJECT_SOURCE_DIR}/include/*.h)
 #----------------------------------------------------------------------------
 # Generate dictionaries, add ROOT libraries properties
 #
-#REFLEX_GENERATE_DICTIONARY(RDataDictClasses include/RDataDictClasses.h SELECTION xml/selection.xml)
 add_library(RData STATIC ${sources})
 set(libsuffix .a)
 set(ROOT_LIBRARY_PROPERTIES ${ROOT_LIBRARY_PROPERTIES} SUFFIX ${libsuffix})
