@@ -42,6 +42,7 @@ message(STATUS "ROOT Library:  ${ROOT_LIBRARIES}")
 
 ROOT_GENERATE_DICTIONARY(CMMonitorDict ${PROJECT_SOURCE_DIR}/include/CMMonitor.h LINKDEF ${PROJECT_SOURCE_DIR}/include/CMMonitorDictLinkDef.h)
 
+
 add_executable(CMMonitor ${PROJECT_SOURCE_DIR}/source/CMMonitor.cxx ${sources} ${headers} CMMonitorDict.cxx)
 add_library(CMMonitorDictionaries SHARED ${sources} ${headers} CMMonitorDict.cxx)
 target_link_libraries(CMMonitorDictionaries ${ROOT_LIBRARIES})
