@@ -1,0 +1,13 @@
+#include "RDataContainer.h"
+#include "RDataWindow.h"
+#include "RSDataWindow.h"
+#include "RDataFit.h"
+#include "RPlotList.h"
+#include "RDataFitEntry.h"
+#include "RProcessLog.h"
+#include "RComboBoxDialog.h"
+#include "RPlotContainer.h"
+#include "RNumberEntryDialog.h"
+#include "RStringEntryDialog.h"
+#include "RMsgBox.h"
+

@@ -1,0 +1,595 @@
+;; -*- mode: emacs-lisp; coding: emacs-mule; -*-
+;; --------------------------------------------------------------------------
+;; Desktop File for Emacs
+;; --------------------------------------------------------------------------
+;; Created Mon May 31 21:13:08 2021
+;; Desktop file format version 208
+;; Emacs version 26.3
+
+;; Global section:
+(setq desktop-saved-frameset [frameset 1 (24757 38836 722715 10000) (desktop . "208") "mgericke@GerickeDAQLab01" nil nil ((((minibuffer . t) (undecorated) (override-redirect) (font-backend xft x) (font . "-PfEd-DejaVu Sans Mono-normal-normal-normal-*-12-*-*-*-m-0-iso10646-1") (font-parameter) (border-width . 0) (internal-border-width . 0) (right-divider-width . 0) (bottom-divider-width . 0) (vertical-scroll-bars . right) (horizontal-scroll-bars) (foreground-color . "black") (background-color . "white") (mouse-color . "black") (border-color . "black") (screen-gamma) (line-spacing) (left-fringe . 8) (right-fringe . 8) (no-special-glyphs) (scroll-bar-foreground) (scroll-bar-background) (menu-bar-lines . 1) (tool-bar-lines . 1) (title) (wait-for-wm . t) (tool-bar-position . top) (inhibit-double-buffering) (icon-type . t) (auto-raise) (auto-lower) (cursor-type . box) (scroll-bar-width . 16) (scroll-bar-height . 0) (alpha) (no-focus-on-map) (no-accept-focus) (fullscreen) (visibility . t) (skip-taskbar) (z-group) (display-type . color) (background-mode . light) (cursor-color . "black") (sticky) (environment) (frameset--id . "4A17-B9A1-7F97-3C64") (frameset--mini t . t) (height . 70) (width . 195) (modeline . t) (unsplittable) (left . 513) (top . 49) (icon-name) (display . ":50.0") (explicit-name)) ((min-height . 4) (min-width . 10) (min-height-ignore . 3) (min-width-ignore . 7) (min-height-safe . 1) (min-width-safe . 2) (min-pixel-height . 60) (min-pixel-width . 70) (min-pixel-height-ignore . 45) (min-pixel-width-ignore . 49) (min-pixel-height-safe . 15) (min-pixel-width-safe . 14)) leaf (pixel-width . 1397) (pixel-height . 1035) (total-width . 200) (total-height . 69) (normal-height . 1.0) (normal-width . 1.0) (buffer "*Buffer List*" (selected . t) (hscroll . 0) (fringes 8 8 nil) (margins nil) (scroll-bars nil 3 t nil 0 t) (vscroll . 0) (dedicated) (point . 1) (start . 1))))])
+(setq desktop-missing-file-warning nil)
+(setq tags-file-name nil)
+(setq tags-table-list nil)
+(setq search-ring nil)
+(setq regexp-search-ring nil)
+(setq register-alist nil)
+(setq file-name-history '("~/MOLLERTestDAQ/CurrentMode/DataMonitor/" "~/MOLLERTestDAQ/CurrentMode/DataMonitor/source/*.cxx" "~/MOLLERTestDAQ/CurrentMode/DataMonitor/include/*.h" "~/MOLLERTestDAQ/CurrentMode/DataMonitor/"))
+
+;; Buffer section -- buffers listed in same order as in buffer list:
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/source/CMMonitor.cxx"
+  "CMMonitor.cxx"
+  'c++-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time 24757 38822 458483 768000) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/include/CMMonitor.h"
+  "CMMonitor.h"
+  'c++-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time 24757 38809 218559 559000) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/include/CMMonitorDef.h"
+  "CMMonitorDef.h"
+  'c-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time 24757 38807 287414 772000) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/include/CMMonitorDictLinkDef.h"
+  "CMMonitorDictLinkDef.h"
+  'c-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time 24757 38807 287359 14000) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/source/RVegas.cxx"
+  "RVegas.cxx"
+  'c++-mode
+  '(abbrev-mode)
+  565
+  '(565 nil)
+  nil
+  nil
+  '((buffer-display-time 24757 38726 43610 792000) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/source/RStringEntryDialog.cxx"
+  "RStringEntryDialog.cxx"
+  'c++-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time 24757 38715 49556 177000) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/CMakeLists.txt"
+  "CMakeLists.txt"
+  'cmake-mode
+  nil
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/source/RComboBoxDialog.cxx"
+  "RComboBoxDialog.cxx"
+  'c++-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/source/RDataContainer.cxx"
+  "RDataContainer.cxx"
+  'c++-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/source/RDataFit.cxx"
+  "RDataFit.cxx"
+  'c++-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/source/RDataFitEntry.cxx"
+  "RDataFitEntry.cxx"
+  'c++-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/source/RDataWindow.cxx"
+  "RDataWindow.cxx"
+  'c++-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/source/RMsgBox.cxx"
+  "RMsgBox.cxx"
+  'c++-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/source/RNumberEntryDialog.cxx"
+  "RNumberEntryDialog.cxx"
+  'c++-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/source/RPlotContainer.cxx"
+  "RPlotContainer.cxx"
+  'c++-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/source/RPlotList.cxx"
+  "RPlotList.cxx"
+  'c++-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/source/RProcessLog.cxx"
+  "RProcessLog.cxx"
+  'c++-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/source/RProgressDialog.cxx"
+  "RProgressDialog.cxx"
+  'c++-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/source/RSDataWindow.cxx"
+  "RSDataWindow.cxx"
+  'c++-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/include/babypath.h"
+  "babypath.h"
+  'c-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/include/definers.h"
+  "definers.h"
+  'c-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/include/nr.h"
+  "nr.h"
+  'c-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/include/nrutil.h"
+  "nrutil.h"
+  'c-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/include/RComboBoxDialog.h"
+  "RComboBoxDialog.h"
+  'c++-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/include/RDataContainerDef.h"
+  "RDataContainerDef.h"
+  'c-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/include/RDataContainer.h"
+  "RDataContainer.h"
+  'c++-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/include/RDataDictClasses.h"
+  "RDataDictClasses.h"
+  'c-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/include/RDataFitDef.h"
+  "RDataFitDef.h"
+  'c-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/include/RDataFitEntryDef.h"
+  "RDataFitEntryDef.h"
+  'c-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/include/RDataFitEntry.h"
+  "RDataFitEntry.h"
+  'c++-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/include/RDataFit.h"
+  "RDataFit.h"
+  'c++-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/include/RDataWindowDef.h"
+  "RDataWindowDef.h"
+  'c-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/include/RDataWindow.h"
+  "RDataWindow.h"
+  'c++-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/include/RMsgBox.h"
+  "RMsgBox.h"
+  'c++-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/include/RNumberEntryDialog.h"
+  "RNumberEntryDialog.h"
+  'c++-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/include/RPlotContainerDef.h"
+  "RPlotContainerDef.h"
+  'c-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/include/RPlotContainer.h"
+  "RPlotContainer.h"
+  'c++-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/include/RPlotListDef.h"
+  "RPlotListDef.h"
+  'c-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/include/RPlotList.h"
+  "RPlotList.h"
+  'c++-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/include/RProcessLogDef.h"
+  "RProcessLogDef.h"
+  'c-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/include/RProcessLog.h"
+  "RProcessLog.h"
+  'c++-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/include/RProgressDialogDef.h"
+  "RProgressDialogDef.h"
+  'c-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/include/RProgressDialog.h"
+  "RProgressDialog.h"
+  'c++-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/include/RSDataWindow.h"
+  "RSDataWindow.h"
+  'c++-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/include/RStringEntryDialog.h"
+  "RStringEntryDialog.h"
+  'c++-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/include/RVegasDef.h"
+  "RVegasDef.h"
+  'c-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/include/RVegas.h"
+  "RVegas.h"
+  'c++-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+
+(desktop-create-buffer 208
+  "/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/include/try1.h"
+  "try1.h"
+  'c-mode
+  '(abbrev-mode)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((buffer-display-time) (buffer-file-coding-system . undecided-unix))
+  '((mark-ring nil)))
+

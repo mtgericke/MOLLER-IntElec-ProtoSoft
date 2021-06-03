@@ -1,0 +1,4 @@
+[ libCMMonitorDict.so ]
+# List of selected classes
+class CMMonitor
+header CMMonitor.h
