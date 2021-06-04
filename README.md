@@ -6,6 +6,7 @@
 * 5.4.0-70-generic
 * ROOT 6.22/08 with all required and recommended support programs
 * The program uses the ROOT graphical interface components (TG*)
+* sudo apt install libzmq3-dev
 
 ## Project Layout
 
