@@ -14,7 +14,8 @@ find_package(ROOT REQUIRED)
 
 set(RDATA_LIBRARIES "${PROJECT_SOURCE_DIR}/lib/build/libRData.a")
 set(RDATA_INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/lib/include")
-
+set(ZMQ_LIBRARY "/usr/local/lib")
+set(ZMQ_INCLUDE_DIR "/usr/local/include")
 
 # ROOT version 6 required
 if(ROOT_FOUND)
@@ -33,7 +34,8 @@ endif()
 
 include_directories(${PROJECT_SOURCE_DIR}/include
                     ${ROOT_INCLUDE_DIRS}
-		    ${RDATA_INCLUDE_DIRS})
+		    ${RDATA_INCLUDE_DIRS}
+		    ${ZMQ_INCLUDE_DIR})
 file(GLOB sources ${PROJECT_SOURCE_DIR}/source/*.cxx)
 file(GLOB headers ${PROJECT_SOURCE_DIR}/include/*.h)
 
@@ -47,4 +49,4 @@ add_executable(CMMonitor ${PROJECT_SOURCE_DIR}/source/CMMonitor.cxx ${sources} $
 add_library(CMMonitorDictionaries SHARED ${sources} ${headers} CMMonitorDict.cxx)
 target_link_libraries(CMMonitorDictionaries ${ROOT_LIBRARIES})
 
-target_link_libraries(CMMonitor CMMonitorDictionaries ${RDATA_LIBRARIES} ${ROOT_LIBRARIES}  ROOT::Gui ROOT::Core ROOT::Imt ROOT::RIO ROOT::Net ROOT::Hist ROOT::Graf ROOT::Graf3d ROOT::Gpad ROOT::ROOTVecOps ROOT::Tree ROOT::TreePlayer ROOT::Rint ROOT::Postscript ROOT::Matrix ROOT::Physics ROOT::MathCore ROOT::Thread ROOT::MultiProc ROOT::ROOTDataFrame -pthread)
+target_link_libraries(CMMonitor -lzmq CMMonitorDictionaries ${RDATA_LIBRARIES} ${ROOT_LIBRARIES}  ROOT::Gui ROOT::Core ROOT::Imt ROOT::RIO ROOT::Net ROOT::Hist ROOT::Graf ROOT::Graf3d ROOT::Gpad ROOT::ROOTVecOps ROOT::Tree ROOT::TreePlayer ROOT::Rint ROOT::Postscript ROOT::Matrix ROOT::Physics ROOT::MathCore ROOT::Thread ROOT::MultiProc ROOT::ROOTDataFrame -pthread)

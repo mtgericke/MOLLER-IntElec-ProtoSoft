@@ -29,20 +29,13 @@
 #define NAME_STR_MAX          200          //Maximum file name length
 #endif
 
+#define SAMPLES_PER_SECOND    14705883
+#define MAX_SAMPLES (SAMPLES_PER_SECOND*5)
+#define MAX_ALLOC   ((MAX_SAMPLES+MAX_SAMPLES)*8)
+#define ADC_CONVERSION 0.00003125         // 2^-17*4.096  V/bin
+#define TS_TO_NS  4                       // nanoseconds per timestamp tick
+#define TS_CONVERSION  17                 // Number of cycles to convert (68ns  / 4ns) at 250Mhz ADC clock
 
-#define ANL_MAX_OBJ_CNT                  10000 //Maximum number of obj used in 
-                                               //Analysis
-#define ADC_CONV_FACTOR                 3276.8 //ADC sample unit conversion factor
-                                               //(counts per Volt)
-#define AMPL_NOISE                     1.9e-14 //amps per sqrt(Hz) from amplifier
-#define MAIN_GAIN                         50e6 //First amp stage gain (Ohms)
-#define SAMPL_FAC                          0.6 //from bessel filtering (see lab book)
-#define SAMPL_BW                          4200 //Bandwidth (Hz) set by the Sum-Diff Amps 
-#define DAQ_SDFAC                            1 //Summing and Differencing
-                                               //noise enhancement factor
-#define COSMIC_DEP_MEV                      85 //Energy deposited in a detector
-                                               //by a single cosmic traversing
-                                               //the entire detector length (MeV)
 #define e_CHARGE                1.60217733e-19 //electron charge in Coulombs
 #define v_LIGHT                 2.99792458e8   //speed of light in m/s
 #define n_MASS                  939.56533e6    //neutron mass in eV/c^2             
@@ -57,11 +50,6 @@
 #define N_AVOG                    6.0221367e23
 
 #define ERR_RET_VAL                 400000000 
-
-#define QUEUE_GRPUFLOW_ERROR   "ERROR: Trying to read beyond end of file.\n"
-#define FILE_RANGE_ERROR       "ERROR: Invalid macro pulse range selected.\n"
-#define ANL_ALLOC_ERROR        "ERROR: Unable to allocate memory for analysis\n"
-#define ANL_BINNING_ERROR      "ERROR: Unable to auto establish binning of histos\n"
 
 //Error Messages
 #define LIST_ITEM_CREATE_ERROR                1011
@@ -123,6 +111,7 @@ enum CommandIdentifiers {
   M_CALC_SFL_EFF,
   M_SET_SFL_EFF_PARMS,
   M_SET_CONNECT,
+  M_CONNECT,
 
   M_ANL_PR_SEQ,
   M_ANL_PR_RUN,
@@ -151,6 +140,7 @@ enum CommandIdentifiers {
   M_FILE_OPEN,
   M_ROOT_FILE_OPEN,
   M_FILE_SAVE,
+  M_FILE_SAVE_SETTINGS,
   M_FILE_SAVEAS,
   M_FILE_PRINT,
   M_FILE_PRINTSETUP,
@@ -192,6 +182,9 @@ enum CommandIdentifiers {
   M_TBIN_SELECT,
   M_TARGET_SELECT,
   M_RUN_SELECT,
+  M_RUN_START,
+  M_RUN_STOP,
+  M_RUN_PAUSE,
   M_ANL_ASYM,
   M_GEN_PEDS,
   M_GEN_BGRND,
@@ -247,18 +240,54 @@ enum CommandIdentifiers {
   M_HELP_CONTENTS,
   M_HELP_SEARCH,
   M_HELP_ABOUT,
-  
-  VId1,
-  HId1,
-  VId2,
-  HId2,
-  
-  VSId1,
-  HSId1,
-  VSId2,
-  HSId2,
-  
-  ColorSel
+  M_IPA_QUERY,
+  M_SDIV_SELECT,
+  M_RUN_SEQ_SELECT,
+
+  CMB_CH0SEL,
+  LB_CH0_ID1,
+  LB_CH0_ID2,
+  LB_CH0_ID3,
+  LB_CH0_ID4,
+  LB_CH0_ID5,
+  LB_CH0_ID6,
+  LB_CH0_ID7,
+  LB_CH0_ID8,
+  LB_CH0_ID9,
+  LB_CH0_ID10,
+  LB_CH0_ID11,
+  LB_CH0_ID12,
+  LB_CH0_ID13,
+  LB_CH0_ID14,
+  LB_CH0_ID15,
+  LB_CH0_ID16,
+
+  CMB_CH1SEL,
+  LB_CH1_ID1,
+  LB_CH1_ID2,
+  LB_CH1_ID3,
+  LB_CH1_ID4,
+  LB_CH1_ID5,
+  LB_CH1_ID6,
+  LB_CH1_ID7,
+  LB_CH1_ID8,
+  LB_CH1_ID9,
+  LB_CH1_ID10,
+  LB_CH1_ID11,
+  LB_CH1_ID12,
+  LB_CH1_ID13,
+  LB_CH1_ID14,
+  LB_CH1_ID15,
+  LB_CH1_ID16,
+
+  BTN_TGRAPH,
+  BTN_HSTHR,
+  BTN_FFT,
+  BTN_RUN_START,
+  BTN_CLEAR_PL,
+  M_RUN_TIME_SELECT,
+  M_SET_IP
+
 };
 
 

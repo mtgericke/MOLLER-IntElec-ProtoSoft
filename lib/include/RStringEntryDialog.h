@@ -18,9 +18,12 @@
 #include <TGButton.h>
 #include <TEnv.h>
 #include <TGTextEntry.h>
+#include <TString.h>
 #include <TGTextBuffer.h>
 #include "RDataContainerDef.h"
 #include <string.h>
+#include <iostream>
+
 
 class RStringEntryDialog : public TGTransientFrame {
 
@@ -31,7 +34,7 @@ private:
   char               dObjName[NAME_STR_MAX];
   char               dOwnerName[NAME_STR_MAX]; 
   char               dTitle[NAME_STR_MAX]; 
-  char              *dFunc;
+  TString           *dFunc;
 
   TGTextEntry       *fFuncEntry;
   TGTextBuffer      *fFuncBuffer;
@@ -44,11 +47,11 @@ private:
   
  public:
   RStringEntryDialog(const TGWindow *p, const TGWindow *main, 
-		     char* objname, char *ownername, Bool_t *Stat,
-		     char *Func, const char *title, UInt_t w, UInt_t h);
+		     const char* objname, const char *ownername, Bool_t *Stat,
+		     TString *Func, const char *title, UInt_t w, UInt_t h);
   virtual ~RStringEntryDialog();
   
-  virtual void      CloseWindow();
+  virtual void      Close();
   virtual Bool_t    ProcessMessage(Long_t msg, Long_t parm1, Long_t parm2);
   void              IsClosing(char *);
 

@@ -29,93 +29,65 @@
 * 'cd build'
 * 'cmake ..'
 * 'make'
+* cp CMMonitor ..
+* cd ..
+
 
 ## Running
 
-Either
 * './CMMonitor' (without commandline arguments - connection can be set via menu)
-Or
-* 'CMMonitor <ipaddress:port> <ROOT output filename>'
+* Note: moller_cntr.py and CMMonitorSettings.txt must be in the directory from which CMMonitor is started
+* Follow these steps:
+* Set the ip address from the menu (only has to be done ones when the address changes)
+* The run number, run time, prescale, ch0, ch1 setting are read from the CMMonitorSettings.txt file. Adjust those as needed (see below).
+* Select "Connect" (MUST BE DONE AFTER ALL OF THE ABOVE INFORMATION IS ENTERED) from the "Data" menu and then press "Start"
+* The program also has the ability to take multiple runs at a time. The number of runs can be specified at right end of the toolbar.
+* Data is added to all histograms cummulatively (except in multi-run mode) so plots can get very large and slow to load (in ROOT). The "Clear Plots" button resets the data in the ROOT plots. It does not clear the actuall data writtent to file, which happens very quickly after the "Start" of the run.
+
+# Menus
+
+* File/Open(Data File): Read in a previously taken run
+* File/Save(Settings): Modifies the CMMonitorSettings.txt file with the options that are currently entered in the Toolbar. Caution: This overrides the information about the last raken run in that diectory.
+* Data/Set IP: Set the ip address of the ADC board here
+* Data/Connect: Connects the board to the ADC
+* Data/Stop: Force stops the data taking process
+
+## Inputs and Buttons:
+
+* Run: Run number - incremented automatically after the run is taken and stored in CMMonitorSettings.txt
+* Run Time: Number of second length of the run. Note that the runs should be very short (a few seconds at most), since a lot of data is currently written, depending on the sampling rate. Depending on the network speed (currently only copper Eth0) there could be gaps in the data if the run is too long, unless the rate is decereased with "Prescale".
+*Prescale: The sampling rate of the ADC is 14705883 Smpls/sec and currently every sample is taken and transferred. The Prescale setting allows to decrease the number of buffered and transferred samples. A Prescale=2 means only every other sample is buffered and transferred. If the network connection or the computer running this software is not fast enough, not all buffered samples will be transferred in time, before the buffer is overwritten on the FPGA SoM. So gaps may occur in the colleced data. For normal computers and network connections a larger prescale factor will prevent this (of course also reducing the available bandwidth information).
+*Ch0/Ch1: Set the two channels to be read out simultaneously (both can be chosen between 1-16). Currently at most two channels can be read out at the same time, again, due to speed limitations, but all channels on the 16 channel ADC board are operational.
+*Start: Start a run after selecting "Connect" from the "Data" menu. The run only takes a short moment to be written to file (binary file), but filling the ROOT plots may take a little longer. The histogram shows the progrss.
+* Time Graph: Generates plots of the data as a function of time (from the sample timestamp in each run)
+* Histo (HR): Generates a higher resolution histogram of the data. Same as the one that is filled at first, but with a higher bin resolution
+* FFT: Generates the FFT of the data
+* Clear Plots: Clear the plots and resets them to zero. Can be used if things take too long to plot.
 
 
-## Notes
+#### Hardware
 
-### Hardware
-
-This program currently interfaces to the Enclustra PE1+ FPGA evluation board via standard network connection.
-The FPGA board connects to the current two channel ADC prototype board. The needed settings for the FPGA board
-are provided below.
+This program looks for the 16 ADC board with the specified ip address. The board should be powered and booted, which
+it does normally on power on. Look for the 4 vertical LEDs pattern at the front of the board, which
+should be [on,on,off,on] from top to bottom. This pattern means the board booted correctly.
 
 ### Data Rate
 
 The data rate from the FPGA board is very high, currently only being read out in streaming mode.
-So the graphs in the program reset afer a while, but the data is written to a ROOT tree. Nonetheless,
-the root files become very large (or there are many of them).
+So the graphs in the program should be reset afer a while, but the data is written to a binary file. Nonetheless,
+the files become very large if runs are too long.
 
-### PE1
+### Firmware
 
-The I/O voltage jumpers on the Mercurey PE1+ baseboard need to be
-configured as follows
-- VSEL A = 1.8 (position B)
-- VSEL B = 1.8 (position B)
-
-#### DIP Switches
-
-1. CFG A
-
-   | DIP Switch | Position
-   |:-|:-|
-   |CFG A 1|OFF (ON for JTAG boot)
-   |CFG A 2|OFF
-   |CFG A 3|OFF
-   |CFG A 4|ON
-
-1. CFG B
-
-   | DIP Switch | Position
-   |:-|:-|
-   |CFG B 1|OFF
-   |CFG B 2|OFF
-   |CFG B 3|ON
-   |CFG B 4|OFF
-
-1. USER
-
-   These are all don't cares at the moment, but may be used in the future
-
-   | DIP Switch | Position
-   |:-|:-|
-   |CFG U 1|OFF
-   |CFG U 2|OFF
-   |CFG U 3|OFF
-   |CFG U 4|OFF
-
-#### JTAG Boot
-
-To boot from JTAG dip switch `CFG A 1` needs to be in the `ON` position. Additionally, while the PE1 is powering up, resistor `R252` needs to be short-circuited on the Enclustra XU-8 module. See page 48 of the Mercury XU8 User Manual V06 for details.
-
-![alt text](docs/pe1_xu8_jtag_boot_resistor.png "Logo Title Text 1")
-
-### Common Problems
-
-1. USB / JTAG doesn't work - Even though the docker can perform the JTAG operation, the Xilinx cable drivers need to be installed on the HOST in order to function
-
-   1. Download `Xilinx_Unified_2020.1_0602_1208.tar.gz` and place it in the `docker` directory.
-   1. Run `tar zxvf Xilinx_Unified_2020.1_0602_1208.tar.gz`
-   1. Run `cd Xilinx_Unified_2020.1_0602_1208`
-   1. Run ``
+Presently, the easiest way to load the firmware and boot the SoM, is with an SDcard that can be inserted on the side and underneath the SoM module.
+The 
 
 1. Making an SDcard image (Warning: Assumes /dev/sdb is an SDcard!)
 
    1. `sudo parted /dev/sdb --script -- mklabel msdos`
-   1. `sudo parted /dev/sdb --script -- mkpart primary fat32 1MiB 100%`
-   1. `sudo mkfs.vfat -F32 /dev/sdb1`
-   1. `sudo fatlabel /dev/sdb1 PETALINUX`
+   2. `sudo parted /dev/sdb --script -- mkpart primary fat32 1MiB 100%`
+   3. `sudo mkfs.vfat -F32 /dev/sdb1`
+   4. `sudo fatlabel /dev/sdb1 PETALINUX`
 
-1. Updating SDcard image
-   1. `cp sw/linux/images/linux/BOOT.BIN sw/linux/images/linux/boot.scr sw/linux/images/linux/image.ub <SDcard_root_directory>`
-
-1. Testing GPIO first pin
-   1. `echo 504 > /sys/class/gpio/export` (Note: Name is name of amba_pl GPIO in /sys/class/gpio/...)
-   1. `echo out > /sys/class/gpio/gpio504/direction`
-   1. `echo 1 > /sys/class/gpio/gpio504/value`
+2. Copy files to SDCard
+   1. `cp BOOT.BIN boot.scr image.ub <SDcard_root_directory>`

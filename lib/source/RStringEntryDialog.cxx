@@ -11,8 +11,8 @@
 #include "RStringEntryDialog.h"
 
 RStringEntryDialog::RStringEntryDialog(const TGWindow *p, const TGWindow *main,
-				       char* objname, char *ownername, Bool_t *retStat,
-				       char* Func, const char *title, UInt_t w, 
+				       const char* objname, const char *ownername, Bool_t *retStat,
+				       TString *Func, const char *title, UInt_t w, 
 				       UInt_t h) :
   TGTransientFrame(p, main, w, h)
 {
@@ -23,6 +23,7 @@ RStringEntryDialog::RStringEntryDialog(const TGWindow *p, const TGWindow *main,
   strcpy(dTitle,title);
   
   ChangeOptions((GetOptions() & ~kVerticalFrame) | kHorizontalFrame);
+  this->SetCleanup(kDeepCleanup);
   
   frame = new TGVerticalFrame(this,500, 50);
   fBttnframe = new TGHorizontalFrame(frame,500, 20);
@@ -32,7 +33,6 @@ RStringEntryDialog::RStringEntryDialog(const TGWindow *p, const TGWindow *main,
   fHint3 = new TGLayoutHints(kLHintsTop | kLHintsLeft | kLHintsExpandX, 2, 2,  2, 2);
   fHint4 = new TGLayoutHints(kLHintsTop | kLHintsLeft | kLHintsExpandX, 0, 0, 0, 0);
 
-
   fOk = new TGTextButton(fBttnframe, " &Ok ", 10);
   fOk->Associate(this);
   fBttnframe->AddFrame(fOk,fHint2);
@@ -40,7 +40,7 @@ RStringEntryDialog::RStringEntryDialog(const TGWindow *p, const TGWindow *main,
   fCancel->Associate(this);
   fBttnframe->AddFrame(fCancel, fHint2);
 
-  fFuncEntry = new TGTextEntry(fEntrframe, fFuncBuffer = new TGTextBuffer(200));
+  fFuncEntry = new TGTextEntry(fEntrframe, fFuncBuffer = new TGTextBuffer(150));
   fEntrframe->AddFrame(fFuncEntry,fHint);
   fFuncEntry->SetState(1);
 
@@ -74,15 +74,15 @@ RStringEntryDialog::RStringEntryDialog(const TGWindow *p, const TGWindow *main,
 
 RStringEntryDialog::~RStringEntryDialog()
 {
-//   delete frame;
-//   delete fBttnframe;
-//   delete fEntrframe;
-//   delete fHint; 
-//   delete fHint2;
-//   delete fHint3;
-//   delete fHint4;
-//   delete fFuncEntry;
-//   delete fFuncBuffer;
+  // delete frame;
+  // delete fBttnframe;
+  // delete fEntrframe;
+  // delete fHint; 
+  // delete fHint2;
+  // delete fHint3;
+  // delete fHint4;
+  // delete fFuncEntry;
+  // delete fFuncBuffer;
 }
 
 void RStringEntryDialog::IsClosing(char *objname)
@@ -90,11 +90,11 @@ void RStringEntryDialog::IsClosing(char *objname)
   Emit("IsClosing(char*)",(long)objname);
 }
 
-void RStringEntryDialog::CloseWindow()
+void RStringEntryDialog::Close()
 {
   IsClosing(dObjName);
- 
-  DeleteWindow();
+
+  CloseWindow();
 }
 
 Bool_t RStringEntryDialog::ProcessMessage(Long_t msg, Long_t parm1, Long_t parm2)
@@ -107,13 +107,14 @@ Bool_t RStringEntryDialog::ProcessMessage(Long_t msg, Long_t parm1, Long_t parm2
       {
 	switch (parm1) {
 	case 10:
-	  strcpy(dFunc,fFuncBuffer->GetString());
+	  *dFunc = fFuncBuffer->GetString();
+	  // strcpy(dFunc,fFuncBuffer->GetString());
 	  *dRetStat = kTrue;
-	  CloseWindow();
+	  Close();
 	  break;
 	case 20:
 	  *dRetStat = kFalse;
-	  CloseWindow();
+	  Close();
 	  break;
 	}
       }
