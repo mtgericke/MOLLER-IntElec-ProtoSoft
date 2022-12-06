@@ -90,4 +90,14 @@ The
    4. `sudo fatlabel /dev/sdb1 PETALINUX`
 
 2. Copy files to SDCard
-   1. `cp BOOT.BIN boot.scr image.ub <SDcard_root_directory>`
+   1. unzip -p ${SDCARD_ZIP} BOOT.BIN >/media/${USER}/${SDCARD_BOOT_LABEL}/BOOT.BIN
+   2. unzip -p ${SDCARD_ZIP} boot.scr >/media/${USER}/${SDCARD_BOOT_LABEL}/boot.scr
+   3. unzip -p ${SDCARD_ZIP} Image >/media/${USER}/${SDCARD_BOOT_LABEL}/Image
+   4. unzip -p ${SDCARD_ZIP} rootfs.tar.gz | sudo tar -C /media/${USER}/${SDCARD_ROOTFS_LABEL} -zxvf -
+   
+Notes:
+
+   Replace ${SDCARD_ZIP} with the name of the zip file (currently moller_20220505.zip)
+   Replace ${USER} with your usename in linux
+   Replace ${SDCARD_BOOT_LABEL} with BOOT
+   Replace ${SDCARD_ROOTFS_LABEL} with PETALINUX
