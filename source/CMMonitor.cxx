@@ -289,10 +289,12 @@ void CMMonitor::FillDataPlots()
   uint32_t ch0_num;      //4 bytes
   uint32_t ch1_num;      //4 bytes
   uint32_t PreSc;
-  double sTime;          //absolute sample time stamp for each run
-  double sTimeP = 0;     //dumy
-  double iTime;          //run start time stamp  
-  double cTime = 0;      //current time stamp within run relative to run start time
+  uint64_t sTime;          //absolute sample time stamp for each run
+  uint64_t sTimeP = 0;     //dumy
+  uint64_t iTime;          //run start time stamp  
+  uint64_t cTime = 0;      //current time stamp within run relative to run start time
+  uint64_t cTimeP = 0;
+  uint64_t tStampP = 0;
   
   
   double t1 = 0, t2 = 0;
@@ -329,33 +331,34 @@ void CMMonitor::FillDataPlots()
 
 	  ch0_data = ch0 >> 14;
 	  ch1_data = ch1 >> 14;
+	  PreSc = ((ch0 >> 4) & 0x7F)+1;
+	  ch0_num = ch0 & 0xF;
+	  ch1_num = ch1 & 0xF;
 
-	  if(bi == 0 && n == 0){
-  
-	    ch0_num = ch0 & 0xF;
-	    ch1_num = ch1 & 0xF;
-	    
-	    PreSc = ((ch0 >> 4) & 0x7F) + 1;
-
-	    if(IsDataFileOpen()){
-
-	      iSettings.currentData0 = ch0_num;
-	      iSettings.currentData1 = ch1_num;
-	      iSettings.PreScFactor = PreSc;
-	      Ch0ListBox->Select(iSettings.currentData0+3100,false);
-	      Ch1ListBox->Select(iSettings.currentData1+3100,false);
-	      dSmplDivEntry->SetNumber((double)PreSc);
-	      gSystem->ProcessEvents();
-	    }
-	  }
+	  // if(bi == 0 && n == 0){
+	  //   if(IsDataFileOpen()){
+	  //     iSettings.currentData0 = ch0_num;
+	  //     iSettings.currentData1 = ch1_num;
+	  //     iSettings.PreScFactor = PreSc;
+	  //     Ch0ListBox->Select(iSettings.currentData0+3100,false);
+	  //     Ch1ListBox->Select(iSettings.currentData1+3100,false);
+	  //     dSmplDivEntry->SetNumber((double)PreSc);
+	  //     gSystem->ProcessEvents(); 
+	  //   }
+	  // }
 	  
 	  if(ch0_num == ch1_num){
-	    sTime = (tStamp + ((n*2) * TS_CONVERSION * PreSc)) *  TS_TO_NS*1e-6;
+	    sTime = (tStamp + ((n*2) * TS_CONVERSION * PreSc)) *  TS_TO_NS;
 	  }
 	  else{
-	    sTime = (tStamp + (n * TS_CONVERSION * PreSc)) * TS_TO_NS*1e-6;
-	    if(!k)
-	      iTime = sTime;
+	    sTime = (tStamp + (n * TS_CONVERSION * PreSc)) * TS_TO_NS;
+	  }
+
+	  if(!p){
+	    iTime = sTime;
+	    sTimeP = sTime;
+	    cTimeP = cTime;
+	    tStampP = tStamp;
 	  }
 
 	  cTime = sTime-iTime + RunStartTime;
@@ -366,15 +369,20 @@ void CMMonitor::FillDataPlots()
 	  thisData->ch1_sum += ch1_data*ADC_CONVERSION;
 	  thisData->ch0_ssq += ch0_data*ADC_CONVERSION*ch0_data*ADC_CONVERSION;
 	  thisData->ch1_ssq += ch1_data*ADC_CONVERSION*ch1_data*ADC_CONVERSION;
-	  thisData->tStmp.push_back(cTime);
+	  thisData->tStmp.push_back(cTime*1e-6);
 
 	  ChSigHst[0]->Fill(ch0_data*ADC_CONVERSION);
 	  ChSigHst[1]->Fill(ch1_data*ADC_CONVERSION);
-	  ChSigGr[0]->SetPoint(p+RunStartIndex,cTime,ch0_data*ADC_CONVERSION);
-	  ChSigGr[1]->SetPoint(p+RunStartIndex,cTime,ch1_data*ADC_CONVERSION);
- 	  // cout.precision(17);
-	  // cout << "p = " << p << "  sTime = " << sTime-iTime << "  sTimeDiv = " << sTime - sTimeP << " ch0 =  "<<  ch0_data*ADC_CONVERSION << endl;
-	  // sTimeP = sTime;
+	  ChSigGr[0]->SetPoint(p+RunStartIndex,cTime*1e-6,ch0_data*ADC_CONVERSION);
+	  ChSigGr[1]->SetPoint(p+RunStartIndex,cTime*1e-6,ch1_data*ADC_CONVERSION);
+	  // if(cTime - cTimeP < 0){
+	  //   cout.precision(17);
+	  //   cout << "bi = " << bi << " p = " << p << " tStamp = " << tStamp << " tStampP = " << tStampP << " tStampDiv = " << tStamp-tStampP << "  sTime = " << (sTime-iTime) << "  sTimeDiv = " << (sTime - sTimeP)*1e-6 << "  cTime = " << cTime*1e-6 << " ch0 =  "<<  ch0_data*ADC_CONVERSION << endl;
+	  // }
+	  
+	  sTimeP = sTime;
+	  cTimeP = cTime;
+	  tStampP = tStamp;
 	  if(!(p%50000)){
 	    dCurrMSmplHstCv[0]->GetCanvas()->cd();
 	    gPad->Modified();
@@ -391,6 +399,7 @@ void CMMonitor::FillDataPlots()
 	k++;
 	bi = bi + 16 + nSamp*8;
       }
+      
       RunStartTime = cTime;
       RunStartIndex += p;
       thisData->PreScF = PreSc;
@@ -402,6 +411,13 @@ void CMMonitor::FillDataPlots()
       thisData->ch0_sig = sqrt(thisData->ch0_ssq/thisData->ch0_data.size()-thisData->ch0_mean*thisData->ch0_mean); 
       thisData->ch1_sig = sqrt(thisData->ch1_ssq/thisData->ch1_data.size()-thisData->ch1_mean*thisData->ch1_mean);
       if(IsDataFileOpen()){
+	iSettings.currentData0 = ch0_num;
+	iSettings.currentData1 = ch1_num;
+	iSettings.PreScFactor = PreSc;
+	Ch0ListBox->Select(iSettings.currentData0+3100,false);
+	Ch1ListBox->Select(iSettings.currentData1+3100,false);
+	dSmplDivEntry->SetNumber((double)PreSc);
+	//gSystem->ProcessEvents();
 	iSettings.RunLength = ceil(p*PreSc/SAMPLES_PER_SECOND);
 	dRunTimeEntry->SetNumber(p*PreSc/SAMPLES_PER_SECOND);
       }
@@ -770,7 +786,7 @@ Int_t CMMonitor::CalculateFFT()
     DataSamples *data = PlotData[l];
 
     if(l == 0){
-      binning = (int)(data->NSamples/100);
+      binning = (int)(data->NSamples/1000);
       RATE = SAMPLES_PER_SECOND/data->PreScF;
       smpl_range = (int)data->NSamples;
 
@@ -780,11 +796,6 @@ Int_t CMMonitor::CalculateFFT()
       fftCh0->SetBins(binning/2-1,0,(Int_t)(RATE/2.0));
       fftCh1->SetBins(binning/2-1,0,(Int_t)(RATE/2.0));
   
-      // fftGainCh0 = new TProfile(Form("FFTGainCh0_%d",data->Run),"",binning/2-1,0,(Int_t)(RATE/2.0));
-      // fftGainCh1 = new TProfile(Form("FFTGainCh1_%d",data->Run),"",binning/2-1,0,(Int_t)(RATE/2.0));
-      
-      // Ch0Hst = new TH1D("Ch0BtHst","",8192,-4.096,4.096);
-      // Ch1Hst = new TH1D("Ch1BtHst","",8192,-4.096,4.096);          
     }
    
     lmean[0] = data->ch0_mean;
