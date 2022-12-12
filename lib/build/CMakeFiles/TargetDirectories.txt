@@ -1,3 +1,0 @@
-/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/build/CMakeFiles/rebuild_cache.dir
-/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/build/CMakeFiles/edit_cache.dir
-/home/mgericke/MOLLERTestDAQ/CurrentMode/DataMonitor/lib/build/CMakeFiles/RData.dir
