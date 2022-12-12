@@ -15,6 +15,7 @@
 #include <TSystem.h>
 #include "TGButton.h"
 #include "TGIcon.h"
+#include "TGPicture.h"
 #include "TGLabel.h"
 #include "TMath.h"
 #include "TList.h"
