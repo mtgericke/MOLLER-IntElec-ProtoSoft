@@ -112,6 +112,8 @@ enum CommandIdentifiers {
   M_SET_SFL_EFF_PARMS,
   M_SET_CONNECT,
   M_CONNECT,
+  M_GATEOVL_1,
+  M_GATEOVL_2,  
 
   M_ANL_PR_SEQ,
   M_ANL_PR_RUN,

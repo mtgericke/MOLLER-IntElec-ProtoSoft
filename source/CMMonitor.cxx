@@ -9,8 +9,6 @@
 #include <stdlib.h>
 #include <CMMonitor.h>
 
-//ClassImp(CMMonitor)  
-
 CMMonitor::CMMonitor(const TGWindow *p, UInt_t w, UInt_t h)
   : TGMainFrame(p, w, h)
 {
@@ -45,6 +43,10 @@ CMMonitor::CMMonitor(const TGWindow *p, UInt_t w, UInt_t h)
   
   dNRunsSeq = 1;
   dNRunSeqCnt = 0;
+
+
+  DataTree = NULL;
+  DataRooFile = NULL;
   
   SamplesOutFileName = Form("Int_Run_%03d.dat",iSettings.currentRun);
   ReadNSamples = iSettings.RunLength*SAMPLES_PER_SECOND/iSettings.PreScFactor;
@@ -59,13 +61,26 @@ CMMonitor::CMMonitor(const TGWindow *p, UInt_t w, UInt_t h)
   socket = NULL;
   context = NULL;
 
+  fftTmpCh0 = NULL;
+  fftTmpCh1 = NULL;
+  fftCh0 = NULL;
+  fftCh1 = NULL;
+  dHightResHR = false;
+
+  dTab = NULL;
+
   SetDataFileOpen(false);
   
+  dGateOvl1 = false;
+  dGateOvl2 = false;
+
   std::set_new_handler(0);
 
   MakeMenuLayout();
   MakeUtilityLayout();
+  MakeGateLayout();  
   MakeCurrentModeTab();
+  MakeAsymmetryTab();
   MapSubwindows();
   Resize(GetDefaultSize());
   MapWindow();
@@ -75,7 +90,6 @@ Bool_t CMMonitor::ConnectBoard()
 {  
   TString ip;
   Bool_t retflag;
-  //string server = "tcp://10.32.182.93:5556";
   string tmp = iSettings.IP.data();
   server = "tcp://"+ tmp + ":5556";
   cout << "Connecting to server:  " << server.data() << endl;
@@ -114,6 +128,13 @@ void CMMonitor::StartDataCollection()
     }
     
     if(RUN_START){
+
+      if(!IsRootFileOpen()){
+
+	ROOTFileName = Form("Int_Run_%03d-%03d.root",iSettings.currentRun,iSettings.currentRun+dNRunsSeq-1);	
+	cout << "Here Setting ROOT file name: " << ROOTFileName.Data() << endl;
+	OpenRootFile(FS_NEW, ROOTFileName.Data());
+      }
 
       iSettings.currentRun++;
       dRunEntry->SetNumber(iSettings.currentRun);
@@ -165,6 +186,8 @@ void CMMonitor::StartDataCollection()
       if(dNRunsSeq == 1)
 	FillDataPlots();
       else{
+
+	FillRootTree();
 	
 	if(!dataQue.empty()){
 	  
@@ -192,8 +215,10 @@ void CMMonitor::StartDataCollection()
     }
     gSystem->ProcessEvents();
     
-    if(RUN_STOP)
+    if(RUN_STOP){
+      CloseRootFile();
       break;
+    }
   }
   RUN_STOP = false;
 }
@@ -295,7 +320,21 @@ void CMMonitor::FillDataPlots()
   uint64_t cTime = 0;      //current time stamp within run relative to run start time
   uint64_t cTimeP = 0;
   uint64_t tStampP = 0;
-  
+
+  uint32_t gate1;
+  uint32_t gate2;
+
+  double ch0_psum = 0;
+  double ch0_nsum = 0;
+  double ch0_pcnt = 0;
+  double ch0_ncnt = 0;
+  double ch1_psum = 0;
+  double ch1_nsum = 0;
+  double ch1_pcnt = 0;
+  double ch1_ncnt = 0;
+
+  int g1cr, flc1;
+  int g2cr, flc2;
   
   double t1 = 0, t2 = 0;
   int p = 0, k = 0;
@@ -335,17 +374,8 @@ void CMMonitor::FillDataPlots()
 	  ch0_num = ch0 & 0xF;
 	  ch1_num = ch1 & 0xF;
 
-	  // if(bi == 0 && n == 0){
-	  //   if(IsDataFileOpen()){
-	  //     iSettings.currentData0 = ch0_num;
-	  //     iSettings.currentData1 = ch1_num;
-	  //     iSettings.PreScFactor = PreSc;
-	  //     Ch0ListBox->Select(iSettings.currentData0+3100,false);
-	  //     Ch1ListBox->Select(iSettings.currentData1+3100,false);
-	  //     dSmplDivEntry->SetNumber((double)PreSc);
-	  //     gSystem->ProcessEvents(); 
-	  //   }
-	  // }
+	  gate1 = (ch0 >> 12) & 0x1;
+	  gate2 = (ch0 >> 13) & 0x1;
 	  
 	  if(ch0_num == ch1_num){
 	    sTime = (tStamp + ((n*2) * TS_CONVERSION * PreSc)) *  TS_TO_NS;
@@ -359,27 +389,69 @@ void CMMonitor::FillDataPlots()
 	    sTimeP = sTime;
 	    cTimeP = cTime;
 	    tStampP = tStamp;
+	    g1cr = gate1;
+	    flc1 = 0;
+	    g2cr = gate2;
+	    flc2 = 0;
 	  }
 
 	  cTime = sTime-iTime + RunStartTime;
 
 	  thisData->ch0_data.push_back(ch0_data*ADC_CONVERSION);
 	  thisData->ch1_data.push_back(ch1_data*ADC_CONVERSION);
+	  thisData->gate1.push_back(gate1);
+	  thisData->gate2.push_back(gate2);
 	  thisData->ch0_sum += ch0_data*ADC_CONVERSION;
 	  thisData->ch1_sum += ch1_data*ADC_CONVERSION;
 	  thisData->ch0_ssq += ch0_data*ADC_CONVERSION*ch0_data*ADC_CONVERSION;
 	  thisData->ch1_ssq += ch1_data*ADC_CONVERSION*ch1_data*ADC_CONVERSION;
 	  thisData->tStmp.push_back(cTime*1e-6);
 
+	  if(gate1 != g1cr){g1cr = gate1; flc1++;}
+
+	  if(flc1 == 2){
+	    flc1 = 0;
+	    
+	    thisData->ch0_asym.push_back((ch0_psum/ch0_pcnt - ch0_nsum/ch0_ncnt)/(ch0_psum/ch0_pcnt + ch0_nsum/ch0_ncnt));
+	    thisData->ch1_asym.push_back((ch1_psum/ch1_pcnt - ch1_nsum/ch1_ncnt)/(ch1_psum/ch1_pcnt + ch1_nsum/ch1_ncnt));
+
+	    thisData->ch0_asym_num.push_back((ch0_psum/ch0_pcnt - ch0_nsum/ch0_ncnt));
+	    thisData->ch1_asym_num.push_back((ch1_psum/ch1_pcnt - ch1_nsum/ch1_ncnt));
+	    thisData->ch0_asym_den.push_back((ch0_psum/ch0_pcnt + ch0_nsum/ch0_ncnt));
+	    thisData->ch1_asym_den.push_back((ch1_psum/ch1_pcnt + ch1_nsum/ch1_ncnt));
+	    
+	    ch0_psum = 0;
+	    ch1_psum = 0;
+	    ch0_pcnt = 0;
+	    ch1_pcnt = 0;
+	    ch0_nsum = 0;
+	    ch1_nsum = 0;
+	    ch0_ncnt = 0;
+	    ch1_ncnt = 0;
+	  }
+  
+	  if(gate1) {
+	    ch0_psum += ch0_data*ADC_CONVERSION;
+	    ch1_psum += ch1_data*ADC_CONVERSION;
+	    ch0_pcnt++;
+	    ch1_pcnt++;
+	  }
+	  if(!gate1) {
+	    ch0_nsum += ch0_data*ADC_CONVERSION;
+	    ch1_nsum += ch1_data*ADC_CONVERSION;
+	    ch0_ncnt++;
+	    ch1_ncnt++;
+	  }
+
+
 	  ChSigHst[0]->Fill(ch0_data*ADC_CONVERSION);
 	  ChSigHst[1]->Fill(ch1_data*ADC_CONVERSION);
 	  ChSigGr[0]->SetPoint(p+RunStartIndex,cTime*1e-6,ch0_data*ADC_CONVERSION);
 	  ChSigGr[1]->SetPoint(p+RunStartIndex,cTime*1e-6,ch1_data*ADC_CONVERSION);
-	  // if(cTime - cTimeP < 0){
-	  //   cout.precision(17);
-	  //   cout << "bi = " << bi << " p = " << p << " tStamp = " << tStamp << " tStampP = " << tStampP << " tStampDiv = " << tStamp-tStampP << "  sTime = " << (sTime-iTime) << "  sTimeDiv = " << (sTime - sTimeP)*1e-6 << "  cTime = " << cTime*1e-6 << " ch0 =  "<<  ch0_data*ADC_CONVERSION << endl;
-	  // }
 	  
+	  GateGr[0]->SetPoint(p+RunStartIndex,cTime*1e-6,gate1);
+	  GateGr[1]->SetPoint(p+RunStartIndex,cTime*1e-6,gate2);
+  
 	  sTimeP = sTime;
 	  cTimeP = cTime;
 	  tStampP = tStamp;
@@ -393,7 +465,6 @@ void CMMonitor::FillDataPlots()
 	  }
 	  gSystem->ProcessEvents();
 	  p++;
-	  // RunStartIndex++;
 	}
 	
 	k++;
@@ -417,7 +488,6 @@ void CMMonitor::FillDataPlots()
 	Ch0ListBox->Select(iSettings.currentData0+3100,false);
 	Ch1ListBox->Select(iSettings.currentData1+3100,false);
 	dSmplDivEntry->SetNumber((double)PreSc);
-	//gSystem->ProcessEvents();
 	iSettings.RunLength = ceil(p*PreSc/SAMPLES_PER_SECOND);
 	dRunTimeEntry->SetNumber(p*PreSc/SAMPLES_PER_SECOND);
       }
@@ -438,10 +508,287 @@ void CMMonitor::FillDataPlots()
       gPad->Modified();
       gPad->Update();
 
+      if(IsRootFileOpen()){
+	tmpDataSmpl = thisData;
+	if(DataTree)
+	  DataTree->Fill();
+
+	
+      }
+
       gSystem->ProcessEvents();
     }
+
+    GateGr[0]->SetMarkerColor(kRed);
+    GateGr[1]->SetMarkerColor(kBlue);
+    GateGr[0]->SetLineColor(kRed);
+    GateGr[1]->SetLineColor(kBlue);
+    
+    dGateCv[0]->GetCanvas()->cd();
+    GateGr[0]->Draw("al");
+    gPad->Modified();
+    gPad->Update();
+    dGateCv[1]->GetCanvas()->cd();
+    GateGr[1]->Draw("al");
+    gPad->Modified();
+    gPad->Update();
+
+    DataTree->AutoSave("FlushBaskets");
+    
   }
 }
+
+
+
+
+void CMMonitor::FillRootTree()
+{
+  //pkt *data;
+  pkt *data;
+  rawPkt *rPkt;
+
+  size_t bi = 0;
+  uint16_t num_words;  //2 bytes
+  uint32_t num_pkt;    //4 bytes
+  uint8_t padding;     //1 byte
+  uint8_t id;          //1 byte to unsigned int
+  uint64_t tStamp;     //8 bytes
+  
+  uint16_t nSamp;
+  uint16_t SampRead = 0;
+  int32_t ch0;           //4 bytes
+  int32_t ch1;           //4 bytes
+  int32_t ch0_data;      //4 bytes
+  int32_t ch1_data;      //4 bytes
+  uint32_t ch0_num;      //4 bytes
+  uint32_t ch1_num;      //4 bytes
+  uint32_t PreSc;
+  uint64_t sTime;          //absolute sample time stamp for each run
+  uint64_t sTimeP = 0;     //dumy
+  uint64_t iTime;          //run start time stamp  
+  uint64_t cTime = 0;      //current time stamp within run relative to run start time
+  uint64_t cTimeP = 0;
+  uint64_t tStampP = 0;
+
+  uint32_t gate1;
+  uint32_t gate2;
+
+  double ch0_psum = 0;
+  double ch0_nsum = 0;
+  double ch0_pcnt = 0;
+  double ch0_ncnt = 0;
+  double ch1_psum = 0;
+  double ch1_nsum = 0;
+  double ch1_pcnt = 0;
+  double ch1_ncnt = 0;
+
+  int g1cr, flc1;
+  int g2cr, flc2;
+  
+  double t1 = 0, t2 = 0;
+  int p = 0, k = 0;
+
+  DataSamples *thisData;
+
+  if(!dataQue.empty()){
+
+    thisData = new DataSamples;
+    thisData->ch0_sum = 0;
+    thisData->ch1_sum = 0;
+    thisData->ch0_ssq = 0;
+    thisData->ch1_ssq = 0;
+    PlotData.push_back(thisData);
+    
+    rPkt = dataQue.front();
+    if(rPkt){     
+      while(bi < rPkt->length){
+	
+	memcpy(&num_words,&(rPkt->data)[bi+0],2);
+	memcpy(&num_pkt,&(rPkt->data)[bi+2],4);
+	memcpy(&padding,&(rPkt->data)[bi+6],1);
+	memcpy(&id,&(rPkt->data)[bi+7],1);
+	memcpy(&tStamp,&(rPkt->data)[bi+8],8);	
+ 	nSamp = num_words - 1;
+	
+	for(int n = 0; n < nSamp; n++){
+	  
+	  memcpy(&ch0,&(rPkt->data)[bi+16+n*8],4);
+	  memcpy(&ch1,&(rPkt->data)[bi+16+n*8+4],4);
+
+	  ch0_data = ch0 >> 14;
+	  ch1_data = ch1 >> 14;
+	  PreSc = ((ch0 >> 4) & 0x7F)+1;
+	  ch0_num = ch0 & 0xF;
+	  ch1_num = ch1 & 0xF;
+
+	  gate1 = (ch0 >> 12) & 0x1;
+	  gate2 = (ch0 >> 13) & 0x1;
+	  
+	  if(ch0_num == ch1_num){
+	    sTime = (tStamp + ((n*2) * TS_CONVERSION * PreSc)) *  TS_TO_NS;
+	  }
+	  else{
+	    sTime = (tStamp + (n * TS_CONVERSION * PreSc)) * TS_TO_NS;
+	  }
+
+	  if(!p){
+	    iTime = sTime;
+	    sTimeP = sTime;
+	    cTimeP = cTime;
+	    tStampP = tStamp;
+	    g1cr = gate1;
+	    flc1 = 0;
+	    g2cr = gate2;
+	    flc2 = 0;
+	  }
+
+	  cTime = sTime-iTime + RunStartTime;
+
+	  thisData->ch0_data.push_back(ch0_data*ADC_CONVERSION);
+	  thisData->ch1_data.push_back(ch1_data*ADC_CONVERSION);
+	  thisData->gate1.push_back(gate1);
+	  thisData->gate2.push_back(gate2);
+	  thisData->ch0_sum += ch0_data*ADC_CONVERSION;
+	  thisData->ch1_sum += ch1_data*ADC_CONVERSION;
+	  thisData->ch0_ssq += ch0_data*ADC_CONVERSION*ch0_data*ADC_CONVERSION;
+	  thisData->ch1_ssq += ch1_data*ADC_CONVERSION*ch1_data*ADC_CONVERSION;
+	  thisData->tStmp.push_back(cTime*1e-6);
+
+	  if(gate1 != g1cr){g1cr = gate1; flc1++;}
+
+	  if(flc1 == 2){
+	    flc1 = 0;
+	    
+	    thisData->ch0_asym.push_back((ch0_psum/ch0_pcnt - ch0_nsum/ch0_ncnt)/(ch0_psum/ch0_pcnt + ch0_nsum/ch0_ncnt));
+	    thisData->ch1_asym.push_back((ch1_psum/ch1_pcnt - ch1_nsum/ch1_ncnt)/(ch1_psum/ch1_pcnt + ch1_nsum/ch1_ncnt));
+
+	    thisData->ch0_asym_num.push_back((ch0_psum/ch0_pcnt - ch0_nsum/ch0_ncnt));
+	    thisData->ch1_asym_num.push_back((ch1_psum/ch1_pcnt - ch1_nsum/ch1_ncnt));
+	    thisData->ch0_asym_den.push_back((ch0_psum/ch0_pcnt + ch0_nsum/ch0_ncnt));
+	    thisData->ch1_asym_den.push_back((ch1_psum/ch1_pcnt + ch1_nsum/ch1_ncnt));
+	    
+	    ch0_psum = 0;
+	    ch1_psum = 0;
+	    ch0_pcnt = 0;
+	    ch1_pcnt = 0;
+	    ch0_nsum = 0;
+	    ch1_nsum = 0;
+	    ch0_ncnt = 0;
+	    ch1_ncnt = 0;
+	  }
+  
+	  if(gate1) {
+	    ch0_psum += ch0_data*ADC_CONVERSION;
+	    ch1_psum += ch1_data*ADC_CONVERSION;
+	    ch0_pcnt++;
+	    ch1_pcnt++;
+	  }
+	  if(!gate1) {
+	    ch0_nsum += ch0_data*ADC_CONVERSION;
+	    ch1_nsum += ch1_data*ADC_CONVERSION;
+	    ch0_ncnt++;
+	    ch1_ncnt++;
+	  }
+	    
+	  sTimeP = sTime;
+	  cTimeP = cTime;
+	  tStampP = tStamp;
+	  p++;
+	}	
+	k++;
+	bi = bi + 16 + nSamp*8;
+      }
+      
+      RunStartTime = cTime;
+      RunStartIndex += p;
+      thisData->PreScF = PreSc;
+      thisData->ch0_num = ch0_num;
+      thisData->ch1_num = ch1_num;
+      thisData->ch0_num = ch0_num;
+      thisData->ch0_mean = thisData->ch0_sum/thisData->ch0_data.size(); 
+      thisData->ch1_mean = thisData->ch1_sum/thisData->ch1_data.size(); 
+      thisData->ch0_sig = sqrt(thisData->ch0_ssq/thisData->ch0_data.size()-thisData->ch0_mean*thisData->ch0_mean); 
+      thisData->ch1_sig = sqrt(thisData->ch1_ssq/thisData->ch1_data.size()-thisData->ch1_mean*thisData->ch1_mean);
+      if(IsDataFileOpen()){
+	iSettings.currentData0 = ch0_num;
+	iSettings.currentData1 = ch1_num;
+	iSettings.PreScFactor = PreSc;
+	Ch0ListBox->Select(iSettings.currentData0+3100,false);
+	Ch1ListBox->Select(iSettings.currentData1+3100,false);
+	dSmplDivEntry->SetNumber((double)PreSc);
+	iSettings.RunLength = ceil(p*PreSc/SAMPLES_PER_SECOND);
+	dRunTimeEntry->SetNumber(p*PreSc/SAMPLES_PER_SECOND);
+      }
+      thisData->RunLength = iSettings.RunLength;
+      thisData->NSamples = ReadNSamples;
+      
+      // dataQue.pop();
+      // free(rPkt->data);
+      // delete rPkt;
+
+      if(IsRootFileOpen()){
+	tmpDataSmpl = thisData;
+	if(DataTree)
+	  DataTree->Fill();	
+      }
+      gSystem->ProcessEvents();
+    }
+    DataTree->AutoSave("FlushBaskets");    
+  }
+}
+
+
+Int_t CMMonitor::OpenRootFile(ERFileStatus status, const char* file)
+{
+  Int_t flag = 0;
+
+  if(IsRootFileOpen()) CloseRootFile();
+  char filename[200];
+  if(!file){
+    if(GetFilenameFromDialog(filename,"root",FS_OLD) == PROCESS_FAILED)
+      return PROCESS_FAILED;
+
+    ROOTFileName = filename;
+  }
+  else{
+    ROOTFileName = file;
+    cout << "Setting ROOT file name: " << ROOTFileName << endl;
+  }
+
+  if(status == FS_NEW){
+    DataRooFile = new TFile(ROOTFileName,"RECREATE");
+    if(!DataRooFile){SetRootFileOpen(kFalse); return PROCESS_FAILED;}
+    DataTree = new TTree("DataTree","Integrating ADC Streaming Data");
+    tmpDataSmpl = NULL;
+    DataTree->Branch("SampleStream","DataSamples",&tmpDataSmpl,64000,99);     
+  }
+  if(status == FS_OLD){
+    DataRooFile = new TFile(ROOTFileName,"UPDATE");
+    if(!DataRooFile){SetRootFileOpen(kFalse); return PROCESS_FAILED;}
+    DataTree =  (TTree*)DataRooFile->Get("DataTree");
+    if(!DataTree){SetRootFileOpen(kFalse); return PROCESS_FAILED;} 
+    DataTree->SetBranchAddress("SampleStream",&tmpDataSmpl);
+  }
+  
+  SetRootFileOpen(kTrue);
+
+  return PROCESS_OK;
+}
+
+void CMMonitor::CloseRootFile()
+{
+
+  if(DataRooFile != NULL){
+    DataRooFile->Write("",TObject::kOverwrite);
+    DataRooFile->Close(kFalse);
+    delete DataRooFile;
+    DataRooFile = NULL;
+  }
+
+  SetRootFileOpen(kFalse);
+
+}
+
 
 Int_t CMMonitor::OpenDataFile(ERFileStatus status, const char* file)
 {
@@ -468,7 +815,6 @@ Int_t CMMonitor::OpenDataFile(ERFileStatus status, const char* file)
   SetDataFileOpen(kTrue);
   SetDataFileName(filename);
 
-  // FILE *ifile = fopen(filename,"rb");
   ifstream ifile(filename, std::ifstream::binary);
   
   if(ifile.is_open()){
@@ -477,29 +823,13 @@ Int_t CMMonitor::OpenDataFile(ERFileStatus status, const char* file)
     size_t length = ifile.tellg();
     rawPkt *pkt = new rawPkt;
     pkt->data = (uint8_t*)malloc(length);
-   
-    // char * memblock;    
-    // memblock = new char [length];
-    
+       
     ifile.seekg (0, ios::beg);
     ifile.read ((char*)pkt->data,length);
     ifile.close();
     pkt->length = length;
     dataQue.push(pkt);
     
-    
-
-    // memcpy(&(((rArgs*)vargp)->pkt->data)[data_written], data, len);
-    
-    
-    // size_t nb = 0;
-    
-    // while(nb < length){
-
-      
-
-    // }
-
     return PROCESS_OK;
   
   }
@@ -529,8 +859,8 @@ void CMMonitor::CloseDataFile()
 {
   SetDataFileOpen(false);
   SetDataFileName("");
-  ClearData();
-  ClearPlots();
+  //ClearData();
+  // ClearPlots();
 }
 
 void CMMonitor::ClearData()
@@ -601,12 +931,12 @@ void CMMonitor::ClearPlots()
   dCurrMSmplHstCv[1]->GetCanvas()->cd();
   gPad->Modified();
   gPad->Update();
-  dCurrMSmplHstHRCv[0]->GetCanvas()->cd();
-  gPad->Modified();
-  gPad->Update();
-  dCurrMSmplHstHRCv[1]->GetCanvas()->cd();
-  gPad->Modified();
-  gPad->Update();
+  // dCurrMSmplHstHRCv[0]->GetCanvas()->cd();
+  // gPad->Modified();
+  // gPad->Update();
+  // dCurrMSmplHstHRCv[1]->GetCanvas()->cd();
+  // gPad->Modified();
+  // gPad->Update();
   dCurrMSmplGrCv[0]->GetCanvas()->cd();
   gPad->Modified();
   gPad->Update();
@@ -694,32 +1024,139 @@ Int_t CMMonitor::GetFilenameFromDialog(char *file, const char *ext,
   return PROCESS_OK;
 }
 
-void CMMonitor::PlotDataGraph()
+void CMMonitor::ExecuteEvent(Int_t event, Int_t px, Int_t py)
 {
+  TString name = gPad->GetCanvas()->GetName();
+  if(name.Contains("SmplGr_Ch0")){
+    dCurrMSmplGrCv[0]->GetCanvas()->cd();
+    ChSigGr[0]->GetXaxis()->SetRangeUser(xslider1->GetMinimum()*ChSigGr[0]->GetXaxis()->GetXmax(),xslider1->GetMaximum()*ChSigGr[0]->GetXaxis()->GetXmax());
+    gPad->Modified();
+    gPad->Update();
+ 
+  }
+  if(name.Contains("SmplGr_Ch1")){
+    dCurrMSmplGrCv[1]->GetCanvas()->cd();
+    ChSigGr[1]->GetXaxis()->SetRangeUser(xslider2->GetMinimum()*ChSigGr[1]->GetXaxis()->GetXmax(),xslider2->GetMaximum()*ChSigGr[1]->GetXaxis()->GetXmax());
+    gPad->Modified();
+    gPad->Update();
+ 
+  }
+  TObject::ExecuteEvent(event,px,py);
   
-  dCurrMSmplGrCv[0]->GetCanvas()->cd();
-  ChSigGr[0]->Draw("ap");
-  gPad->Modified();
-  gPad->Update();
-  dCurrMSmplGrCv[1]->GetCanvas()->cd();
-  ChSigGr[1]->Draw("ap");
-  gPad->Modified();
-  gPad->Update();
+}
 
+void CMMonitor::PlotDataGraph(int ovl)
+{
+  TGraph* gr = NULL;
+  
+  if(!dGateOvl1 && !dGateOvl2 && !ovl){
+    dCurrMSmplGrCv[0]->GetCanvas()->cd();
+    dCurrMSmplGrCv[0]->GetCanvas()->SetBottomMargin(0.2);
+    ChSigGr[0]->Draw("ap");
+    ChSigGr[0]->GetXaxis()->SetRangeUser(0.1*ChSigGr[0]->GetXaxis()->GetXmax(),0.11*ChSigGr[0]->GetXaxis()->GetXmax());
+    xslider1 = new TSlider("xslider1","x",0.02,0.02,0.98,0.08);
+    xslider1->SetRange(0.1,0.11);    
+    xslider1->SetObject(this);
+    xslider1->SetEditable(kFALSE);
+    
+    gPad->Modified();
+    gPad->Update();
+    dCurrMSmplGrCv[1]->GetCanvas()->cd();
+    dCurrMSmplGrCv[1]->GetCanvas()->SetBottomMargin(0.2);
+    ChSigGr[1]->Draw("ap");
+    ChSigGr[1]->GetXaxis()->SetRangeUser(0.1*ChSigGr[1]->GetXaxis()->GetXmax(),0.11*ChSigGr[1]->GetXaxis()->GetXmax());
+    xslider2 = new TSlider("xslider2","x",0.02,0.02,0.98,0.08);
+    xslider2->SetRange(0.1,0.11);    
+    xslider2->SetObject(this);
+    xslider2->SetEditable(kFALSE);
+    gPad->Modified();
+    gPad->Update();
 
+    return;
+  }
+
+  if(ovl == 1 && !dGateOvl1){
+    dCurrMSmplGrCv[0]->GetCanvas()->cd();
+    GateGr[0]->Draw("samel");
+    gPad->Modified();
+    gPad->Update();
+    dCurrMSmplGrCv[1]->GetCanvas()->cd();
+    GateGr[0]->Draw("samel");
+    gPad->Modified();
+    gPad->Update();
+
+    dGateOvl1 = true;
+    return;
+  }
+
+  if(ovl == -1 && dGateOvl1){
+    dCurrMSmplGrCv[0]->GetCanvas()->cd();
+    dCurrMSmplGrCv[0]->GetCanvas()->GetListOfPrimitives()->Remove(GateGr[0]);
+    gPad->Modified();
+    gPad->Update();
+    dCurrMSmplGrCv[1]->GetCanvas()->cd();
+    dCurrMSmplGrCv[1]->GetCanvas()->GetListOfPrimitives()->Remove(GateGr[0]);
+    gPad->Modified();
+    gPad->Update();
+    
+    dGateOvl1 = false;
+    return;
+  }
+
+  if(ovl == 2 && !dGateOvl2){
+    dCurrMSmplGrCv[0]->GetCanvas()->cd();
+    GateGr[1]->Draw("samel");
+    gPad->Modified();
+    gPad->Update();
+    dCurrMSmplGrCv[1]->GetCanvas()->cd();
+    GateGr[1]->Draw("samel");
+    gPad->Modified();
+    gPad->Update();
+
+    dGateOvl2 = true;
+    return;
+  }
+
+  if(ovl == -2 && dGateOvl2){
+    dCurrMSmplGrCv[0]->GetCanvas()->cd();
+    dCurrMSmplGrCv[0]->GetCanvas()->GetListOfPrimitives()->Remove(GateGr[1]);
+    gPad->Modified();
+    gPad->Update();
+    dCurrMSmplGrCv[1]->GetCanvas()->cd();
+    dCurrMSmplGrCv[1]->GetCanvas()->GetListOfPrimitives()->Remove(GateGr[1]);
+    gPad->Modified();
+    gPad->Update();
+    
+    dGateOvl2 = false;
+    return;
+  }
+  
 }
 
 void CMMonitor::PlotDataHRHst()
 {
-  
-  dCurrMSmplHstHRCv[0]->GetCanvas()->cd();
-  ChSigHstHR[0]->Draw();
-  gPad->Modified();
-  gPad->Update();
-  dCurrMSmplHstHRCv[1]->GetCanvas()->cd();
-  ChSigHstHR[1]->Draw();
-  gPad->Modified();
-  gPad->Update();
+  if(!dHightResHR){
+    dCurrMSmplHstCv[0]->GetCanvas()->cd();
+    ChSigHstHR[0]->Draw();
+    gPad->Modified();
+    gPad->Update();
+    dCurrMSmplHstCv[1]->GetCanvas()->cd();
+    ChSigHstHR[1]->Draw();
+    gPad->Modified();
+    gPad->Update();
+    dHightResHR = kTrue;
+  }
+  else{
+    dCurrMSmplHstCv[0]->GetCanvas()->cd();
+    ChSigHst[0]->Draw();
+    gPad->Modified();
+    gPad->Update();
+    dCurrMSmplHstCv[1]->GetCanvas()->cd();
+    ChSigHst[1]->Draw();
+    gPad->Modified();
+    gPad->Update();
+    dHightResHR = kFalse;
+  }
 
 }
 
@@ -736,8 +1173,8 @@ void CMMonitor::PlotDataFFT()
   gPad->SetLogy();
   gPad->SetGridx();
   gPad->SetGridy();  
-  fftCh0->GetXaxis()->SetRangeUser(10,RATE/2);
-  fftCh0->GetYaxis()->SetRangeUser(1e-6,0.02);
+  fftCh0->GetXaxis()->SetRangeUser(1,RATE);
+  //fftCh0->GetYaxis()->SetRangeUser(1e-6,0.02);
   gPad->Modified();
   gPad->Update();
 
@@ -748,146 +1185,144 @@ void CMMonitor::PlotDataFFT()
   gPad->SetLogy();
   gPad->SetGridx();
   gPad->SetGridy();  
-  fftCh1->GetXaxis()->SetRangeUser(10,RATE/2);
-  fftCh1->GetYaxis()->SetRangeUser(1e-6,0.02);
+  fftCh1->GetXaxis()->SetRangeUser(1,RATE);
+  //fftCh1->GetYaxis()->SetRangeUser(1e-6,0.02);
   gPad->Modified();
   gPad->Update();
 
 }
 
-
-
 Int_t CMMonitor::CalculateFFT()
 {
-                       
-  // TH1D *Ch0Hst;
-  // TH1D *Ch1Hst;
-
+  double window = 0.1; //seconds
+  uint64_t NSamp;
   int binning; 
   int RATE;
   double mean[2] = {0,0};
   double lmean[2];
+  uint32_t sf;
 
-  int smpl_range; 
+  int smpl_range, smplR; 
   int N = 0;
  
   int Nruns = PlotData.size();
-  
   if(!Nruns) return 0; //do nothing - no data
 
-  fftTmpCh0 = new TH1D(Form("FFTTmpCh0_%d",iSettings.currentRun),"",100,0,100);
-  fftTmpCh1 = new TH1D(Form("FFTTmpCh1_%d",iSettings.currentRun),"",100,0,100);
-  
-  fftCh0 = new TProfile(Form("FFTCh0_%d",iSettings.currentRun),"",100,0,100);
-  fftCh1 = new TProfile(Form("FFTCh1_%d",iSettings.currentRun),"",100,0,100);
+  DataSamples *data;
 
+  for(int l = 0; l < Nruns; l++){
+
+    data = PlotData[l];
+    if(l == 0){
+      NSamp = data->NSamples;
+      sf = data->PreScF;
+      RATE = SAMPLES_PER_SECOND/sf;
+    }
+    else if(data->NSamples < NSamp)
+      NSamp = data->NSamples;
+    
+    if(data->PreScF != sf)
+      return 0; 
+  }
+  
+  if(window >= NSamp/RATE){
+    window = NSamp/RATE; //Window too large for the given data range
+    smplR = NSamp; 
+  }
+  else{
+    smplR = window*RATE;
+  }
+
+  binning = (int)(RATE/50);
+  smpl_range = smplR;
+
+
+  if(!fftTmpCh0)
+    fftTmpCh0 = new TH1D(Form("FFTTmpCh0_%d",iSettings.currentRun),"",binning,0,(Int_t)(RATE));
+  
+  if(!fftTmpCh1)
+    fftTmpCh1 = new TH1D(Form("FFTTmpCh1_%d",iSettings.currentRun),"",binning,0,(Int_t)(RATE));
+  
+  if(!fftCh0)
+    fftCh0 = new TProfile(Form("FFTCh0_%d",iSettings.currentRun),"",binning,0,(Int_t)(RATE));
+
+  if(!fftCh1)
+    fftCh1 = new TProfile(Form("FFTCh1_%d",iSettings.currentRun),"",binning,0,(Int_t)(RATE));
+  
   for(int l = 0; l < Nruns; l++){
 
     DataSamples *data = PlotData[l];
 
-    if(l == 0){
-      binning = (int)(data->NSamples/1000);
-      RATE = SAMPLES_PER_SECOND/data->PreScF;
-      smpl_range = (int)data->NSamples;
-
-      fftTmpCh0->SetBins(binning/2-1,0,(Int_t)(RATE/2.0));
-      fftTmpCh1->SetBins(binning/2-1,0,(Int_t)(RATE/2.0));
+    for(int r = 0; r < data->NSamples/smpl_range; r++){
+     
+      lmean[0] = data->ch0_mean;
+      lmean[1] = data->ch1_mean;
       
-      fftCh0->SetBins(binning/2-1,0,(Int_t)(RATE/2.0));
-      fftCh1->SetBins(binning/2-1,0,(Int_t)(RATE/2.0));
-  
+      mean[0] += lmean[0];
+      mean[1] += lmean[1];
+      
+      AddFFT(fftTmpCh0,data, r*smpl_range, lmean[0], RATE, 0, smpl_range, binning);
+      AddFFT(fftTmpCh1,data, r*smpl_range, lmean[1], RATE, 1, smpl_range, binning);
+      
+      for(int i = 0; i < binning/2-1; i++) {
+	fftCh0->Fill(fftTmpCh0->GetBinCenter(i),fftTmpCh0->GetBinContent(i));
+	fftCh1->Fill(fftTmpCh1->GetBinCenter(i),fftTmpCh1->GetBinContent(i));
+	N++;
+      }
+      fftTmpCh0->Reset();
+      fftTmpCh1->Reset();   
     }
-   
-    lmean[0] = data->ch0_mean;
-    lmean[1] = data->ch1_mean;
-
-    mean[0] += lmean[0];
-    mean[1] += lmean[1];
-    
-    if(data->NSamples < smpl_range){cout << "Range flag!" << endl; smpl_range = data->NSamples;}
-    
-    AddFFT(fftTmpCh0,data,lmean[0], RATE, 0, binning);
-    AddFFT(fftTmpCh1,data,lmean[1], RATE, 1, binning);
-    // AddFFT(fftTmpCh0,data,lmean[0], RATE, 0, smpl_range);
-    // AddFFT(fftTmpCh1,data,lmean[1], RATE, 1, smpl_range);
-    
-    for(int i = 0; i < smpl_range/2-1; i++) {
-      fftCh0->Fill(fftTmpCh0->GetBinCenter(i),fftTmpCh0->GetBinContent(i));
-      fftCh1->Fill(fftTmpCh1->GetBinCenter(i),fftTmpCh1->GetBinContent(i));
-      // Ch0Hst->Fill(data->ch0_data[i] - lmean[0]);
-      // Ch1Hst->Fill(data->ch1_data[i] - lmean[1]);
-      N++;
-    }
-    fftTmpCh0->Reset();
-    fftTmpCh1->Reset();   
-  }  
-
-  // mean[0] = mean[0]/PlotData.size();
-  // mean[1] = mean[1]/PlotData.size();
-
-  // Double_t MaxAmp0 = 0;
-  // Double_t Amp0;
-  // Double_t MaxAmp1 = 0;
-  // Double_t Amp1;
-  
-  // for(int i = 0; i < binning/2-1; i++) {
-  //   Amp0 = fftCh0->GetBinContent(i);
-  //   Amp1 = fftCh1->GetBinContent(i);
-  //   if(MaxAmp0 < Amp0) MaxAmp0 = Amp0;
-  //   if(MaxAmp1 < Amp1) MaxAmp1 = Amp1;
-  // }
-
-  // double ssqCh0 = 0;
-  // double ssqCh1 = 0;
-  // for(int i = 0; i < binning/2-1; i++) {
-  //   fftGainCh0->Fill(fftCh0->GetBinCenter(i),fftCh0->GetBinContent(i)/MaxAmp0);
-  //   fftGainCh1->Fill(fftCh1->GetBinCenter(i),fftCh1->GetBinContent(i)/MaxAmp1);
-  //   fftTmpCh0->SetBinContent(i,fftCh0->GetBinContent(i));
-  //   fftTmpCh1->SetBinContent(i,fftCh1->GetBinContent(i));
-  //   ssqCh0 += pow(fftCh0->GetBinContent(i),2);
-  //   ssqCh1 += pow(fftCh1->GetBinContent(i),2);
-  // }
+  }
 
   return RATE;
 
 }
 
-bool CMMonitor::AddFFT(TH1D *fftTmp, DataSamples *data, double mean, double RATE, int ch, int smpls)
+bool CMMonitor::AddFFT(TH1D *fftTmp, DataSamples *data, int smplSt, double mean, double RATE, int ch, int smplR, int bins)
 {
   vector<double> *tStmp;
   vector<double> *SmplCh;
 
   uint64_t N = data->NSamples;
 
+  if(smplSt + smplR > N) return false;
+
+  Double_t *locDat = new Double_t[smplR];
+
   tStmp = &(data->tStmp);
-  if(ch == 0)
+  if(ch == 0){
     SmplCh = &(data->ch0_data);
-  else if(ch == 1)
+    for(int k = 0; k < smplR; k++)
+      locDat[k] = data->ch0_data[smplSt+k];//-mean;
+  }
+  else if(ch == 1){
     SmplCh = &(data->ch1_data);
+    for(int k = 0; k < smplR; k++)
+      locDat[k] = data->ch1_data[smplSt+k];//-mean;
+  }
   else
     return false;
-
-  TH1D *hst = new TH1D("hst","",smpls,0,smpls/RATE);
-  for(int n = 0; n < N; n++){
-    hst->SetBinContent(n+1,(*SmplCh)[n]-mean);
-  }
-    
-  TH1 *fftmag = NULL;
-  TVirtualFFT::SetTransform(0);
-  fftmag = ((TH1D*)hst)->FFT(fftmag,"MAG");
-  fftmag->SetName("FFT_mag");
+  
+  int nBins[3] = {smplR,0,0};
+  TVirtualFFT *fft = TVirtualFFT::FFT(1, nBins, "MAG R2C M");
+  fft->SetPoints(locDat);
+  fft->Transform();
+  
   Int_t bin;
+  Double_t re, im;
+  int ind[2];
 
-  for(int i = 0; i < smpls/2-1; i++) {
-
-    bin = fftTmp->FindBin(fftmag->GetBinCenter(i)*RATE/(smpls));
-    fftTmp->SetBinContent(bin,2.0*fftmag->GetBinContent(i)/smpls);
-  }
+  for(int i = 0; i < smplR; i++) {
+    ind[0] = i;
+    ind[1] = 0;
+    fft->GetPointComplex(ind, re, im);
+    bin = fftTmp->FindBin((i+1)*RATE/smplR);//fftmag->GetBinCenter(i)*RATE/(bins));
+    fftTmp->SetBinContent(bin,2.0*TMath::Sqrt(re*re + im*im));//fftmag->GetBinContent(i)/bins);
+   }
 
   TVirtualFFT *transf = TVirtualFFT::GetCurrentTransform();
   delete transf;
-  delete hst;
-  delete fftmag;
+  delete locDat;
 
   return true;
   
@@ -898,12 +1333,12 @@ void CMMonitor::MakeMenuLayout()
   
   dMenuFile = new TGPopupMenu(fClient->GetRoot());  
   // dMenuFile->AddEntry("&New (New text output)...", M_FILE_NEW);
-  // dMenuFile->AddEntry("N&ew (New root output)...", M_ROOT_FILE_NEW);  
+  dMenuFile->AddEntry("N&ew (New root output)...", M_ROOT_FILE_NEW);  
   dMenuFile->AddEntry("&Open (Data File)...", M_FILE_OPEN);
-  // dMenuFile->AddEntry("O&pen (Root out file)...", M_ROOT_FILE_OPEN);
+  dMenuFile->AddEntry("O&pen (Root out file)...", M_ROOT_FILE_OPEN);
   // dMenuFile->AddEntry("Open Data Window",M_OPEN_DATAWINDOW);
   dMenuFile->AddEntry("&Save (Settings)", M_FILE_SAVE_SETTINGS);
-  // dMenuFile->AddEntry("C&lose (ROOT out file)", M_ROOT_FILE_CLOSE);  
+  dMenuFile->AddEntry("C&lose (ROOT out file)", M_ROOT_FILE_CLOSE);  
   dMenuFile->AddSeparator();
   // dMenuFile->AddEntry("Root File Browser", M_VIEW_BROWSER);
   // dMenuFile->AddSeparator();
@@ -927,10 +1362,62 @@ void CMMonitor::MakeMenuLayout()
   AddFrame(dMenuBar, new TGLayoutHints(kLHintsTop | kLHintsLeft | kLHintsExpandX,0, 0, 1, 1));
 }
 
+void CMMonitor::MakeAsymmetryTab()
+{
+  TGCompositeFrame *tf = dTab->AddTab("Asymmetry Mode");
+  TGVerticalFrame *vf1 = new TGVerticalFrame(tf,10,10);
+  
+  TGHorizontalFrame *hf[NUM_CHANNELS];
+
+  for(int n = 0; n < NUM_CHANNELS; n++){
+
+    hf[n] = new TGHorizontalFrame(vf1,10,10);
+    vAsymLabF[n] = new TGVerticalFrame(hf[n],10,10);
+    vAsymLabF[n]->Resize(100,10); //this doesn't seem to be doing anything in the case :(
+    dAsymChanLabel[n] = new TGLabel(vAsymLabF[n],Form("Channel %d          ",n)); //leave the empty space to stretch the label
+    vAsymLabF[n]->AddFrame(dAsymChanLabel[n],new TGLayoutHints(kLHintsTop | kLHintsLeft, 2, 2, 2, 2));
+    dAsymMGrCv[n] = new TRootEmbeddedCanvas(Form("AsymGr_Ch%d",n), hf[n], 10, 10);
+    dAsymMHstCv[n] = new TRootEmbeddedCanvas(Form("AsymHst_Ch%d",n), hf[n], 10, 10);
+
+    hf[n]->AddFrame(vAsymLabF[n], new TGLayoutHints( kLHintsLeft | kLHintsTop | kLHintsExpandY, 2, 2, 5, 5));
+    hf[n]->AddFrame(dAsymMGrCv[n],new TGLayoutHints(kLHintsTop | kLHintsExpandX | kLHintsExpandY, 2, 2, 5, 5));
+    hf[n]->AddFrame(dAsymMHstCv[n],new TGLayoutHints(kLHintsTop | kLHintsExpandX | kLHintsExpandY,2, 2, 5, 5));
+    //hf[n]->AddFrame(dAsymMGateCv[n],new TGLayoutHints(kLHintsTop | kLHintsExpandX | kLHintsExpandY,2, 2, 5, 5));
+
+    vf1->AddFrame(hf[n], new TGLayoutHints(kLHintsLeft | kLHintsTop | kLHintsExpandX | kLHintsExpandY));
+    if(n < NUM_CHANNELS-1){
+      TGHorizontal3DLine *Line = new TGHorizontal3DLine(vf1);
+      vf1->AddFrame(Line, new TGLayoutHints(kLHintsTop | kLHintsExpandX));
+    }
+
+    ChAsymHst[n] = new TH1D(Form("ChAsymHst_%02d",n),"",1000,-0.1,0.1);
+    dAsymMHstCv[n]->GetCanvas()->cd();
+    ChAsymHst[n]->Draw();
+    gPad->Modified();
+    gPad->Update();
+    ChAsymGr[n] = new TGraph();
+    ChAsymGr[n]->SetName(Form("GateGr_%02d",n));
+  }
+
+  vf1->Resize(dMWWidth-15,dMWHeight-15);
+
+  TGHorizontal3DLine *anotherLine = new TGHorizontal3DLine(tf);
+  tf->AddFrame(anotherLine, new TGLayoutHints(kLHintsTop | kLHintsExpandX));
+
+  
+  tf->AddFrame(vf1,new TGLayoutHints(kLHintsLeft | kLHintsTop | kLHintsExpandX | kLHintsExpandY));
+  dTab->MapSubwindows();
+  dTab->Layout();
+
+  dAsymChanLabel[0]->SetText(Form("Channel %d",iSettings.currentData0));
+  dAsymChanLabel[1]->SetText(Form("Channel %d",iSettings.currentData1));
+
+}
+
 void CMMonitor::MakeCurrentModeTab()
 {
-  TGTab *Tab = new TGTab(this,dMWWidth-15,dMWHeight-80);  
-  TGCompositeFrame *tf = Tab->AddTab("Current Mode");
+  dTab = new TGTab(this,dMWWidth-15,dMWHeight-80);  
+  TGCompositeFrame *tf = dTab->AddTab("Current Mode");
   TGVerticalFrame *vf1 = new TGVerticalFrame(tf,10,10);
   
   TGHorizontalFrame *hf[NUM_CHANNELS];
@@ -952,13 +1439,13 @@ void CMMonitor::MakeCurrentModeTab()
     // vLabF[n]->AddFrame(dRateFrame[n],new TGLayoutHints(kLHintsTop | kLHintsLeft, 2, 2, 2, 2));   
     dCurrMSmplGrCv[n] = new TRootEmbeddedCanvas(Form("SmplGr_Ch%d",n), hf[n], 10, 10);
     dCurrMSmplHstCv[n] = new TRootEmbeddedCanvas(Form("SmplHst_Ch%d",n), hf[n], 10, 10);
-    dCurrMSmplHstHRCv[n] = new TRootEmbeddedCanvas(Form("SmplHst_Ch%d",n), hf[n], 10, 10);
-    
+    //dCurrMSmplHstHRCv[n] = new TRootEmbeddedCanvas(Form("SmplHst_Ch%d",n), hf[n], 200, 10);    
     dCurrMSmplFFTCv[n] = new TRootEmbeddedCanvas(Form("SmplFFT_Ch%d",n), hf[n], 10, 10);
+    
     hf[n]->AddFrame(vLabF[n], new TGLayoutHints( kLHintsLeft | kLHintsTop | kLHintsExpandY, 2, 2, 5, 5));
     hf[n]->AddFrame(dCurrMSmplGrCv[n],new TGLayoutHints(kLHintsTop | kLHintsExpandX | kLHintsExpandY, 2, 2, 5, 5));
     hf[n]->AddFrame(dCurrMSmplHstCv[n],new TGLayoutHints(kLHintsTop | kLHintsExpandX | kLHintsExpandY,2, 2, 5, 5));
-    hf[n]->AddFrame(dCurrMSmplHstHRCv[n],new TGLayoutHints(kLHintsTop | kLHintsExpandX | kLHintsExpandY,2, 2, 5, 5));
+    //hf[n]->AddFrame(dCurrMSmplHstHRCv[n],new TGLayoutHints(kLHintsTop  | kLHintsExpandY,2, 2, 5, 5));
     hf[n]->AddFrame(dCurrMSmplFFTCv[n],new TGLayoutHints(kLHintsTop | kLHintsExpandX | kLHintsExpandY,2, 2, 5, 5));
     vf1->AddFrame(hf[n], new TGLayoutHints(kLHintsLeft | kLHintsTop | kLHintsExpandX | kLHintsExpandY));
     if(n < NUM_CHANNELS-1){
@@ -983,12 +1470,57 @@ void CMMonitor::MakeCurrentModeTab()
 
   
   tf->AddFrame(vf1,new TGLayoutHints(kLHintsLeft | kLHintsTop | kLHintsExpandX | kLHintsExpandY));
-  AddFrame(Tab, new TGLayoutHints(kLHintsBottom | kLHintsExpandX | kLHintsExpandY,2, 2, 5, 1));
-  Tab->MapSubwindows();
-  Tab->Layout();
+  AddFrame(dTab, new TGLayoutHints(kLHintsBottom | kLHintsExpandX | kLHintsExpandY,2, 2, 5, 1));
+  dTab->MapSubwindows();
+  dTab->Layout();
 
   dChanLabel[0]->SetText(Form("Channel %d",iSettings.currentData0));
   dChanLabel[1]->SetText(Form("Channel %d",iSettings.currentData1));
+
+}
+
+void CMMonitor::MakeGateLayout()
+{
+  TGHorizontal3DLine *dHorizontal3DLine = new TGHorizontal3DLine(this);
+  AddFrame(dHorizontal3DLine, new TGLayoutHints(kLHintsTop | kLHintsExpandX));
+  dGateFrame = new TGHorizontalFrame(this,10,10);
+  TGHorizontalFrame *ghF1 = new TGHorizontalFrame(dGateFrame,10,10);
+  TGHorizontalFrame *ghF2 = new TGHorizontalFrame(dGateFrame,10,10);
+  TGVerticalFrame *gvF1 = new TGVerticalFrame(ghF1,10,10);
+  TGVerticalFrame *gvF2 = new TGVerticalFrame(ghF2,10,10);
+
+  TGLabel* dGLabel1 = new TGLabel(gvF1,"Gate 1");
+  dGChkB1 = new TGCheckButton(gvF1, new TGHotString("Overlay 1"),M_GATEOVL_1);
+  TGLabel* dGLabel2 = new TGLabel(gvF2,"Gate 2");
+  dGChkB2 = new TGCheckButton(gvF2, new TGHotString("Overlay 2"),M_GATEOVL_2);
+  dGChkB1->Associate(this);
+  dGChkB1->SetState(kButtonUp);
+  dGChkB2->Associate(this);
+  dGChkB2->SetState(kButtonUp);
+
+  dGateCv[0] = new TRootEmbeddedCanvas("Gate_1", ghF1, 600, 150);
+  dGateCv[1] = new TRootEmbeddedCanvas("Gate_2", ghF2, 600, 150);
+  GateGr[0] = new TGraph();
+  GateGr[0]->SetName("GateGr_1");
+  GateGr[1] = new TGraph();
+  GateGr[1]->SetName("GateGr_2");
+
+  gvF2->AddFrame(dGLabel2, new TGLayoutHints(kLHintsTop | kLHintsLeft, 2, 2, 10, 4));
+  gvF2->AddFrame(dGChkB2, new TGLayoutHints(kLHintsLeft | kLHintsTop,2,2,2,2));
+  ghF2->AddFrame(gvF2, new TGLayoutHints(kLHintsTop | kLHintsExpandY, 2, 2, 2, 2));
+  ghF2->AddFrame(dGateCv[1],new TGLayoutHints(kLHintsTop | kLHintsExpandY, 2, 2, 2, 2));
+  dGateFrame->AddFrame(ghF2,new TGLayoutHints(kLHintsTop | kLHintsRight | kLHintsExpandY, 2, 20, 4, 2));
+  
+  gvF1->AddFrame(dGLabel1, new TGLayoutHints(kLHintsTop | kLHintsLeft, 2, 2, 10, 4));
+  gvF1->AddFrame(dGChkB1, new TGLayoutHints(kLHintsLeft | kLHintsTop,2,2,2,2));
+  ghF1->AddFrame(gvF1, new TGLayoutHints(kLHintsTop | kLHintsExpandY, 2, 2, 2, 2));
+  ghF1->AddFrame(dGateCv[0],new TGLayoutHints(kLHintsTop | kLHintsExpandY, 2, 2, 2, 2));
+  dGateFrame->AddFrame(ghF1,new TGLayoutHints(kLHintsTop | kLHintsRight | kLHintsExpandY, 2, 20, 4, 2));
+
+  dHorizontal3DLine = new TGHorizontal3DLine(this);
+  AddFrame(dHorizontal3DLine, new TGLayoutHints(kLHintsBottom | kLHintsExpandX));
+  
+  AddFrame(dGateFrame, new TGLayoutHints(kLHintsLeft | kLHintsTop | kLHintsExpandX, 2,2,2,2));
 
 }
 
@@ -1082,9 +1614,14 @@ void CMMonitor::MakeUtilityLayout()
   dBtnTGraph->Associate(this);
   dUtilityFrame->AddFrame(dBtnTGraph, new TGLayoutHints( kLHintsLeft | kLHintsCenterY, 20, 0, 5, 5 ));
 
-  TGTextButton* dBtnHstHR = new TGTextButton(dUtilityFrame, "&Histo (HR)", BTN_HSTHR);
+  TGCheckButton* dBtnHstHR = new TGCheckButton(dUtilityFrame, new TGHotString("&Histo (HR)"),  BTN_HSTHR);
+  dUtilityFrame->AddFrame(dBtnHstHR, new TGLayoutHints(kLHintsLeft |  kLHintsCenterY, 20, 0, 5, 5 ));
   dBtnHstHR->Associate(this);
-  dUtilityFrame->AddFrame(dBtnHstHR, new TGLayoutHints( kLHintsLeft | kLHintsCenterY, 20, 0, 5, 5 ));
+  dBtnHstHR->SetState(kButtonUp);
+
+  // TGTextButton* dBtnHstHR = new TGTextButton(dUtilityFrame, "&Histo (HR)", BTN_HSTHR);
+  // dBtnHstHR->Associate(this);
+  // dUtilityFrame->AddFrame(dBtnHstHR, new TGLayoutHints( kLHintsLeft | kLHintsCenterY, 20, 0, 5, 5 ));
 
   TGTextButton* dBtnFFT = new TGTextButton(dUtilityFrame, "&FFT", BTN_FFT);
   dBtnFFT->Associate(this);
@@ -1124,7 +1661,13 @@ void CMMonitor::OnObjClose(char *obj)
 
 CMMonitor::~CMMonitor()
 {
-
+    cout << "In destructor" << endl;
+  
+  
+  if(IsRootFileOpen()){
+    cout << "Close ROOT File" << endl;
+    CloseRootFile();
+  }
 }
 
 void CMMonitor::CloseWindow()
@@ -1195,8 +1738,6 @@ Bool_t CMMonitor::ProcessMessage(Long_t msg, Long_t parm1, Long_t parm2)
 	//cout << dRunEntry->GetNumber() << endl;
 	iSettings.currentRun = (Int_t)dRunEntry->GetNumber();
 	SamplesOutFileName = Form("Int_Run_%03d.dat",iSettings.currentRun);
-	
-	//cout << SamplesOutFileName  << endl;
 	break;
 
       case M_RUN_TIME_SELECT:
@@ -1233,6 +1774,42 @@ Bool_t CMMonitor::ProcessMessage(Long_t msg, Long_t parm1, Long_t parm2)
     
   case kC_COMMAND:
     switch (GET_SUBMSG(msg)) {
+
+    case kCM_CHECKBUTTON:
+      {
+	switch(parm1) {
+	case M_GATEOVL_1:
+	  {
+	    if (dGChkB1->GetState() == kButtonDown){
+	      PlotDataGraph(1);
+	    }
+	    else{
+	      PlotDataGraph(-1);
+	    }
+	  }
+	  break;
+
+	case M_GATEOVL_2:
+	  {
+	    if (dGChkB2->GetState() == kButtonDown){
+	      PlotDataGraph(2);
+	    }
+	    else{
+	      PlotDataGraph(-2);
+	    }
+	  }
+	  break;
+
+	case BTN_HSTHR:
+	  cout << "Turn on high resol. Hist" << endl; 
+	  PlotDataHRHst();
+	  break;
+
+	  
+	}
+      }
+      break;
+      
       
     case kCM_COMBOBOX:
       {
@@ -1274,10 +1851,10 @@ Bool_t CMMonitor::ProcessMessage(Long_t msg, Long_t parm1, Long_t parm2)
 	  PlotDataGraph();
 	  break;
 	
-	case BTN_HSTHR:
-	  cout << "Turn on high resol. Hist" << endl; 
-	  PlotDataHRHst();
-	  break;
+	// case BTN_HSTHR:
+	//   cout << "Turn on high resol. Hist" << endl; 
+	//   PlotDataHRHst();
+	//   break;
 	  
 	case BTN_FFT:
 	  cout << "Turn on FFT" << endl;
@@ -1312,9 +1889,13 @@ Bool_t CMMonitor::ProcessMessage(Long_t msg, Long_t parm1, Long_t parm2)
       switch (parm1) {
       
       case M_ROOT_FILE_OPEN:
-	//OpenRootFile();
+	OpenRootFile(FS_OLD);
 	break;
-	
+
+      case M_ROOT_FILE_NEW:
+	OpenRootFile(FS_NEW);
+	break;
+
       case M_FILE_OPEN:
 	if(OpenDataFile(FS_OLD) == PROCESS_OK){
 	  FillDataPlots();
@@ -1335,7 +1916,7 @@ Bool_t CMMonitor::ProcessMessage(Long_t msg, Long_t parm1, Long_t parm2)
 	break;
 	
       case M_ROOT_FILE_CLOSE:
-	// CloseRootFile();
+	CloseRootFile();
 	break;
 
       case M_FILE_SAVE_SETTINGS:

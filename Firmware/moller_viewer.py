@@ -104,7 +104,7 @@ def convert_stream_segment(infile, outfile):
             ch0_sel = ch0 & 0xF
 
             stream_div = ((ch0 >> 4) & 0x7F) + 1
-
+ 
             if(ch0_sel == ch1_sel):
                 text_file.write(str((ts + ((n*2) * TS_CONVERSION * stream_div)) *  TS_TO_NS) + "," + str(stream_div) + "," + ch_to_str(ch1_sel, ch1_data) + "\n")
                 text_file.write(str((ts + (((n*2)+1) * TS_CONVERSION * stream_div)) * TS_TO_NS)+ "," + str(stream_div) + "," + ch_to_str(ch0_sel, ch0_data) + "\n")

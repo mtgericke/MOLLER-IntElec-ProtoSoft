@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 // name: CMMonitor.h
-// date: 5-24-2021
+// date: 12-22-2022
 // auth: Michael Gericke
 // mail: Michael.Gericke@umanitoba.ca
 //
@@ -14,7 +14,7 @@
 //       The application needs the ip address of the ADC board and the port (which is
 //       fixed at 5555 on the ADC).
 //
-//       The application make suse of the ROOT analysis framework to display the data
+//       The application makes use of the ROOT analysis framework to display the data
 //       and the RData library to provide a basic interface.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,6 +42,8 @@
 #include <TGTab.h>
 #include <TG3DLine.h>
 #include <TVirtualFFT.h>
+#include <TSlider.h>
+#include <TFrame.h>
 
 #include <string.h>
 #include <time.h>
@@ -59,12 +61,11 @@ using namespace std;
 
 //*********************************************************************************
 //The following are needed to convert from big-endian on ADC side, to little-endian on computer side
+//This is no longer needed (MG, May 2022)
 
 #define Swap4Bytes(val) ( (((val) >> 24) & 0x000000FF) | (((val) >>  8) & 0x0000FF00) |	(((val) <<  8) & 0x00FF0000) | (((val) << 24) & 0xFF000000) )
 
 #define Swap8Bytes(val) ( (((val) >> 56) & 0x00000000000000FF) | (((val) >> 40) & 0x000000000000FF00) | (((val) >> 24) & 0x0000000000FF0000) | (((val) >>  8) & 0x00000000FF000000) | (((val) <<  8) & 0x000000FF00000000) | (((val) << 24) & 0x0000FF0000000000) | (((val) << 40) & 0x00FF000000000000) | (((val) << 56) & 0xFF00000000000000) )
-
-//*********************************************************************************
 
 //Package as send by ADC board (in big-endian)
 // struct pktBigE{
@@ -88,6 +89,9 @@ using namespace std;
 //   int32_t ch1smp;
 // };
 
+//*********************************************************************************
+
+
 struct rawPkt{
 
   uint8_t *data;
@@ -107,11 +111,24 @@ struct pkt{
 };
 
 
-struct DataSamples{
+class DataSamples{
 
+public:
+
+  DataSamples(){};
+  virtual ~DataSamples(){};
+  
   vector<double> tStmp;
   vector<double> ch0_data;
   vector<double> ch1_data;
+  vector<uint32_t> gate1;
+  vector<uint32_t> gate2;
+  vector<double> ch0_asym;
+  vector<double> ch0_asym_num;
+  vector<double> ch0_asym_den;  
+  vector<double> ch1_asym;
+  vector<double> ch1_asym_num;
+  vector<double> ch1_asym_den;
   uint32_t PreScF;
   uint32_t ch0_num;
   uint32_t ch1_num;
@@ -127,6 +144,7 @@ struct DataSamples{
   uint64_t NSamples;
   int Run;
 
+  ClassDef(DataSamples,1)
 } ;
 
 
@@ -169,8 +187,10 @@ private:
   TGPopupMenu            *dMenuTools;
   TGPopupMenu            *dMenuHelp;
 
+  TGTab                  *dTab;
+
   TGHorizontalFrame      *dUtilityFrame;
-  // TGHorizontalFrame      *dRunInfoFrame;
+  TGHorizontalFrame      *dGateFrame;
   TGNumberEntry          *dRunEntry;
   TGLabel                *dRunEntryLabel;
   TGNumberEntry          *dSmplDivEntry;
@@ -179,16 +199,24 @@ private:
   // TGHorizontalFrame      *dRunTimeInfoFrame;
   TGNumberEntry          *dRunTimeEntry;
   TGLabel                *dRunTimeEntryLabel;
-  TGLabel                *dChanLabel[2];
+  TGLabel                *dChanLabel[NUM_CHANNELS];
+  TGLabel                *dAsymChanLabel[NUM_CHANNELS];
   TGComboBox             *Ch0ListBox;
   TGComboBox             *Ch1ListBox;
+  TGCheckButton          *dGChkB1;
+  TGCheckButton          *dGChkB2;
+  
   
   TRootEmbeddedCanvas    *dCurrMSmplGrCv[NUM_CHANNELS];
   TRootEmbeddedCanvas    *dCurrMSmplHstCv[NUM_CHANNELS];
   TRootEmbeddedCanvas    *dCurrMSmplHstHRCv[NUM_CHANNELS];
   TRootEmbeddedCanvas    *dCurrMSmplFFTCv[NUM_CHANNELS];
-  
+
+  TRootEmbeddedCanvas    *dAsymMHstCv[NUM_CHANNELS];
+  TRootEmbeddedCanvas    *dAsymMGrCv[NUM_CHANNELS];
+    
   TGVerticalFrame        *vLabF[NUM_CHANNELS];
+  TGVerticalFrame        *vAsymLabF[NUM_CHANNELS];
   TGLabel                *dRateCounter[NUM_CHANNELS];
   TGHorizontalFrame      *dRateFrame[NUM_CHANNELS];
 
@@ -205,12 +233,23 @@ private:
   TGraph                 *ChSigGr[NUM_CHANNELS];
   TProfile               *ChSigPr[NUM_CHANNELS];
 
+  TH1D                   *ChAsymHst[NUM_CHANNELS];
+  TGraph                 *ChAsymGr[NUM_CHANNELS];
+  
+  TRootEmbeddedCanvas    *dGateCv[2];  //The two TTL gates at the back of the ADC module 
+  TGraph                 *GateGr[2];
+
+
   TH1D                   *fftTmpCh0;
   TH1D                   *fftTmpCh1;
   
   TProfile               *fftCh0;
   TProfile               *fftCh1;
 
+  
+  TTree                  *DataTree;
+  TFile                  *DataRooFile;
+  TString                 ROOTFileName;
   // TProfile               *fftGainCh0;
   // TProfile               *fftGainCh1;
     
@@ -225,6 +264,7 @@ private:
   rawPkt                 *aData;
   uint32_t                ReadNSamples;
   vector<DataSamples*>    PlotData;
+  DataSamples            *tmpDataSmpl;
 
   double                  RunLength;
   int                     CurrentRun;
@@ -252,24 +292,36 @@ private:
   Settings                iSettings;
   
   Bool_t                  dDataFileOpen;
+  Bool_t                  dRootFileOpen;
+  Bool_t                  dGateOvl1;
+  Bool_t                  dGateOvl2;
+  Bool_t                  dHightResHR;
+
+  TSlider                *xslider1;
+  TSlider                *xslider2;
   
   void                    SetIP();
   void                    MakeCurrentModeTab();
+  void                    MakeAsymmetryTab();
   void                    MakeMenuLayout();
   void                    MakeUtilityLayout();
+  void                    MakeGateLayout();
+  
 
   Bool_t                  ConnectBoard();
   // void                    GetServerData(queue<pkt*>*, pkt*, Bool_t*);
   static void            *GetServerData(void *vargp);
   void                    DisconnectBoard();
   void                    FillDataPlots();
+  void                    FillRootTree();
   void                    StartDataCollection();
-  void                    PlotDataGraph();
+  void                    PlotDataGraph(int ovl = 0);
   void                    PlotDataHRHst();
   Int_t                   CalculateFFT();
   void                    WriteSettings();
   Int_t                   OpenDataFile(ERFileStatus status = FS_OLD, const char* file = NULL);
-  Bool_t                  AddFFT(TH1D *fftTmp, DataSamples *data, double mean, double RATE, int ch, int smpls);
+  Int_t                   OpenRootFile(ERFileStatus status = FS_OLD, const char* file = NULL);
+  Bool_t                  AddFFT(TH1D *fftTmp, DataSamples *data, int smplSt, double mean, double RATE, int ch, int smpls, int bins);
   void                    PlotDataFFT();
   Int_t                   GetFilenameFromDialog(char *, const char *,
 						ERFileStatus status = FS_OLD,
@@ -277,6 +329,10 @@ private:
 						 const char *notifytext = NULL);
   void                    SetDataFileOpen(Bool_t open = kFalse){dDataFileOpen = open;};
   Bool_t                  IsDataFileOpen(){return dDataFileOpen;};
+  Bool_t                  IsRootFileOpen(){return dRootFileOpen;};
+  void                    SetRootFileOpen(Bool_t open = kFalse){dRootFileOpen = open;};
+  void                    CloseRootFile();
+
   void                    SetDataFileName(const char *name){DataFileName = name;};
   void                    ClearData();
   void                    ClearPlots();
@@ -284,6 +340,8 @@ private:
   Int_t                   SaveDataFile(ERFileStatus status, const char* file);
   virtual Bool_t          ProcessMessage(Long_t msg, Long_t parm1, Long_t parm2);
 
+  void                    ExecuteEvent(Int_t event, Int_t px, Int_t py);
+  
 public:
   CMMonitor(const TGWindow *p, UInt_t w, UInt_t h);
   virtual ~CMMonitor();
@@ -295,7 +353,6 @@ public:
   void PadIsPicked(TPad* selpad, TObject* selected, Int_t event);
   void MainTabEvent(Int_t,Int_t,Int_t,TObject*);
   
-
   //std::thread spawn() {
   //  return std::thread(&CMMonitor::GetServerData,this);
   //};
