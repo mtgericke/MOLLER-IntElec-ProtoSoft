@@ -1,0 +1,542 @@
+{
+  "jsonVersion": 2,
+  "registerMap": {
+    "name": "moller",
+    "description": "Moller experiment register map",
+    "width": 32,
+    "baseAddress": 2147483648,
+    "addrWidthBits": 32,
+    "registers": [
+      {
+        "type": "RegisterArray",
+        "arrayLength": 16,
+        "genericArrayLength": false,
+        "name": "adc_test_data",
+        "description": "ADC Test Pattern Results",
+        "access": "READ_ONLY",
+        "addressOffset": 0,
+        "size": 32,
+        "fields": [
+          {
+            "name": "bad_pattern_counter",
+            "description": "Counts when test mode is set, looks for ADC test pattern",
+            "bitWidth": 16,
+            "bitOffset": 0,
+            "reset": 0,
+            "selfClear": false,
+            "enumValues": [],
+            "volatile": false
+          },
+          {
+            "name": "bad_dco_counter",
+            "description": "Looks for DCO pattern, counts at all times",
+            "bitWidth": 16,
+            "bitOffset": 16,
+            "reset": 0,
+            "selfClear": false,
+            "enumValues": [],
+            "volatile": false
+          }
+        ]
+      },
+      {
+        "type": "Register",
+        "name": "revision",
+        "description": "Moller register map revision",
+        "access": "READ_ONLY",
+        "addressOffset": 64,
+        "size": 32,
+        "fields": [
+          {
+            "name": "value",
+            "description": "",
+            "bitWidth": 32,
+            "bitOffset": 0,
+            "reset": 0,
+            "selfClear": false,
+            "enumValues": [],
+            "volatile": false
+          }
+        ]
+      },
+      {
+        "type": "Register",
+        "name": "stream_ctrl",
+        "description": "ADC Data streaming mode control",
+        "access": "READ_WRITE",
+        "addressOffset": 68,
+        "size": 32,
+        "fields": [
+          {
+            "name": "num_samples",
+            "description": "Number of samples per packet",
+            "bitWidth": 16,
+            "bitOffset": 0,
+            "reset": 0,
+            "selfClear": false,
+            "enumValues": [],
+            "volatile": false
+          },
+          {
+            "name": "ch0",
+            "description": "Selected ch0 channel for streaming out\n",
+            "bitWidth": 4,
+            "bitOffset": 16,
+            "reset": 0,
+            "selfClear": false,
+            "enumValues": [],
+            "volatile": false
+          },
+          {
+            "name": "ch1",
+            "description": "Select ch1 for streaming out, if ch0\u003d\u003dch1, then streamer will utilize both muxes to stream a single channel, reducing the required bandwidth by half.",
+            "bitWidth": 4,
+            "bitOffset": 20,
+            "reset": 0,
+            "selfClear": false,
+            "enumValues": [],
+            "volatile": false
+          },
+          {
+            "name": "rate_div",
+            "description": "Divides down rate of samples taken from nominal 14.8 msamples/sec\nTrue divisor is field value + 1, so if rate_div \u003d 0, the divider is one.",
+            "bitWidth": 7,
+            "bitOffset": 24,
+            "reset": 0,
+            "selfClear": false,
+            "enumValues": [],
+            "volatile": false
+          },
+          {
+            "name": "enable",
+            "description": "Enable streaming data output",
+            "bitWidth": 1,
+            "bitOffset": 31,
+            "reset": 0,
+            "selfClear": false,
+            "enumValues": [],
+            "volatile": false
+          }
+        ]
+      },
+      {
+        "type": "Register",
+        "name": "adc_ctrl",
+        "description": "ADC Control",
+        "access": "READ_WRITE",
+        "addressOffset": 72,
+        "size": 32,
+        "fields": [
+          {
+            "name": "ch_disable",
+            "description": "Bitmask of ADC channel to disable, useful if ADC is malfunctioning",
+            "bitWidth": 16,
+            "bitOffset": 0,
+            "reset": 0,
+            "selfClear": false,
+            "enumValues": [],
+            "volatile": false
+          },
+          {
+            "name": "sample_rate",
+            "description": "Number of clock cycles to wait, if set below minimum, min. cycles is used internally. \n\nBased on 250MHz (4ns) clock. Min cycle time is 68ns or 17 clock cycles",
+            "bitWidth": 8,
+            "bitOffset": 16,
+            "reset": 0,
+            "selfClear": false,
+            "enumValues": [],
+            "volatile": false
+          },
+          {
+            "name": "clear_counters",
+            "description": "Clears ADC error counters",
+            "bitWidth": 1,
+            "bitOffset": 28,
+            "reset": 0,
+            "selfClear": false,
+            "enumValues": [],
+            "volatile": false
+          },
+          {
+            "name": "power_down",
+            "description": "Power down all ADCs",
+            "bitWidth": 1,
+            "bitOffset": 29,
+            "reset": 0,
+            "selfClear": false,
+            "enumValues": [],
+            "volatile": false
+          },
+          {
+            "name": "testpattern",
+            "description": "Set to enable test pattern output on ADCs",
+            "bitWidth": 1,
+            "bitOffset": 30,
+            "reset": 0,
+            "selfClear": false,
+            "enumValues": [],
+            "volatile": false
+          },
+          {
+            "name": "ena",
+            "description": "Enable ADC subsystem, will run through training sequence automatically",
+            "bitWidth": 1,
+            "bitOffset": 31,
+            "reset": 0,
+            "selfClear": false,
+            "enumValues": [],
+            "volatile": false
+          }
+        ]
+      },
+      {
+        "type": "Register",
+        "name": "freq_td",
+        "description": "Frequency of clock cleaner \"TD\" clock (nominally 250 MHz)",
+        "access": "READ_ONLY",
+        "addressOffset": 76,
+        "size": 32,
+        "fields": [
+          {
+            "name": "value",
+            "description": "",
+            "bitWidth": 32,
+            "bitOffset": 0,
+            "reset": 0,
+            "selfClear": false,
+            "enumValues": [],
+            "volatile": false
+          }
+        ]
+      },
+      {
+        "type": "Register",
+        "name": "freq_osc",
+        "description": "Frequency of onboard oscillator (nominally 100MHz)",
+        "access": "READ_ONLY",
+        "addressOffset": 80,
+        "size": 32,
+        "fields": [
+          {
+            "name": "value",
+            "description": "",
+            "bitWidth": 32,
+            "bitOffset": 0,
+            "reset": 0,
+            "selfClear": false,
+            "enumValues": [],
+            "volatile": false
+          }
+        ]
+      },
+      {
+        "type": "Register",
+        "name": "freq_som0",
+        "description": "Frequency of SOM0 from Clock Cleaner (Non-functional in REV0)",
+        "access": "READ_ONLY",
+        "addressOffset": 84,
+        "size": 32,
+        "fields": [
+          {
+            "name": "value",
+            "description": "",
+            "bitWidth": 32,
+            "bitOffset": 0,
+            "reset": 0,
+            "selfClear": false,
+            "enumValues": [],
+            "volatile": false
+          }
+        ]
+      },
+      {
+        "type": "Register",
+        "name": "freq_som1",
+        "description": "Frequency of SOM1 from Clock Cleaner (Non-functional in REV0)",
+        "access": "READ_ONLY",
+        "addressOffset": 88,
+        "size": 32,
+        "fields": [
+          {
+            "name": "value",
+            "description": "",
+            "bitWidth": 32,
+            "bitOffset": 0,
+            "reset": 0,
+            "selfClear": false,
+            "enumValues": [],
+            "volatile": false
+          }
+        ]
+      },
+      {
+        "type": "Register",
+        "name": "status",
+        "description": "Clock Status",
+        "access": "READ_ONLY",
+        "addressOffset": 92,
+        "size": 32,
+        "fields": [
+          {
+            "name": "clk_lockdetect",
+            "description": "Clock Cleaner Lock Detected on PLL1 and PLL2",
+            "bitWidth": 1,
+            "bitOffset": 0,
+            "reset": 0,
+            "selfClear": false,
+            "enumValues": [],
+            "volatile": false
+          },
+          {
+            "name": "clk_holdover",
+            "description": "Clock cleaner is in holdover",
+            "bitWidth": 1,
+            "bitOffset": 1,
+            "reset": 0,
+            "selfClear": false,
+            "enumValues": [],
+            "volatile": false
+          },
+          {
+            "name": "adc_train_done",
+            "description": "",
+            "bitWidth": 1,
+            "bitOffset": 2,
+            "reset": 0,
+            "selfClear": false,
+            "enumValues": [],
+            "volatile": false
+          }
+        ]
+      },
+      {
+        "type": "RegisterArray",
+        "arrayLength": 16,
+        "genericArrayLength": false,
+        "name": "adc_delay_in",
+        "description": "Requested delay value for ADC channel",
+        "access": "READ_WRITE",
+        "addressOffset": 96,
+        "size": 32,
+        "fields": [
+          {
+            "name": "value",
+            "description": "0-511 Delay to apply to ADC channel",
+            "bitWidth": 9,
+            "bitOffset": 0,
+            "reset": 0,
+            "selfClear": false,
+            "enumValues": [],
+            "volatile": false
+          }
+        ]
+      },
+      {
+        "type": "RegisterArray",
+        "arrayLength": 16,
+        "genericArrayLength": false,
+        "name": "adc_delay_out",
+        "description": "In-use delay value for ADC channel",
+        "access": "READ_ONLY",
+        "addressOffset": 160,
+        "size": 32,
+        "fields": [
+          {
+            "name": "value",
+            "description": "",
+            "bitWidth": 9,
+            "bitOffset": 0,
+            "reset": 0,
+            "selfClear": false,
+            "enumValues": [],
+            "volatile": false
+          }
+        ]
+      },
+      {
+        "type": "Register",
+        "name": "adc_fifo_count",
+        "description": "ADC Streaming data FIFO count",
+        "access": "READ_ONLY",
+        "addressOffset": 224,
+        "size": 32,
+        "fields": [
+          {
+            "name": "value",
+            "description": "",
+            "bitWidth": 32,
+            "bitOffset": 0,
+            "reset": 0,
+            "selfClear": false,
+            "enumValues": [],
+            "volatile": false
+          }
+        ]
+      },
+      {
+        "type": "Register",
+        "name": "run_fifo_count",
+        "description": "ADC Averaging data FIFO count\n",
+        "access": "READ_ONLY",
+        "addressOffset": 228,
+        "size": 32,
+        "fields": [
+          {
+            "name": "value",
+            "description": "",
+            "bitWidth": 32,
+            "bitOffset": 0,
+            "reset": 0,
+            "selfClear": false,
+            "enumValues": [],
+            "volatile": false
+          }
+        ]
+      },
+      {
+        "type": "Register",
+        "name": "ti_fifo_count",
+        "description": "TINode data FIFO count",
+        "access": "READ_ONLY",
+        "addressOffset": 232,
+        "size": 32,
+        "fields": [
+          {
+            "name": "value",
+            "description": "",
+            "bitWidth": 32,
+            "bitOffset": 0,
+            "reset": 0,
+            "selfClear": false,
+            "enumValues": [],
+            "volatile": false
+          }
+        ]
+      },
+      {
+        "type": "Register",
+        "name": "mac_addr_hi",
+        "description": "Upper 16-bits of MAC address",
+        "access": "READ_WRITE",
+        "addressOffset": 256,
+        "size": 32,
+        "fields": [
+          {
+            "name": "value",
+            "description": "",
+            "bitWidth": 32,
+            "bitOffset": 0,
+            "reset": 0,
+            "selfClear": false,
+            "enumValues": [],
+            "volatile": false
+          }
+        ]
+      },
+      {
+        "type": "Register",
+        "name": "mac_addr_lo",
+        "description": "Lower 32-bits of MAC address",
+        "access": "READ_WRITE",
+        "addressOffset": 260,
+        "size": 32,
+        "fields": [
+          {
+            "name": "value",
+            "description": "",
+            "bitWidth": 32,
+            "bitOffset": 0,
+            "reset": 0,
+            "selfClear": false,
+            "enumValues": [],
+            "volatile": false
+          }
+        ]
+      },
+      {
+        "type": "Register",
+        "name": "udp_dest_ip",
+        "description": "IP address to stream UDP packets to",
+        "access": "READ_WRITE",
+        "addressOffset": 264,
+        "size": 32,
+        "fields": [
+          {
+            "name": "value",
+            "description": "",
+            "bitWidth": 32,
+            "bitOffset": 0,
+            "reset": 0,
+            "selfClear": false,
+            "enumValues": [],
+            "volatile": false
+          }
+        ]
+      },
+      {
+        "type": "Register",
+        "name": "udp_dst_port",
+        "description": "IP port to stream UDP packets to",
+        "access": "READ_WRITE",
+        "addressOffset": 268,
+        "size": 32,
+        "fields": [
+          {
+            "name": "value",
+            "description": "",
+            "bitWidth": 16,
+            "bitOffset": 0,
+            "reset": 0,
+            "selfClear": false,
+            "enumValues": [],
+            "volatile": false
+          },
+          {
+            "name": "unused",
+            "description": "",
+            "bitWidth": 16,
+            "bitOffset": 16,
+            "reset": 0,
+            "selfClear": false,
+            "enumValues": [],
+            "volatile": false
+          }
+        ]
+      },
+      {
+        "type": "Register",
+        "name": "udp_src_port",
+        "description": "IP port to stream UDP packets from",
+        "access": "READ_WRITE",
+        "addressOffset": 272,
+        "size": 32,
+        "fields": [
+          {
+            "name": "value",
+            "description": "",
+            "bitWidth": 16,
+            "bitOffset": 0,
+            "reset": 0,
+            "selfClear": false,
+            "enumValues": [],
+            "volatile": false
+          },
+          {
+            "name": "unused",
+            "description": "",
+            "bitWidth": 16,
+            "bitOffset": 16,
+            "reset": 0,
+            "selfClear": false,
+            "enumValues": [],
+            "volatile": false
+          }
+        ]
+      }
+    ],
+    "revision": 287,
+    "generateRecordPorts": false,
+    "generatePackedStructs": false,
+    "disableTimestamps": false
+  }
+}
