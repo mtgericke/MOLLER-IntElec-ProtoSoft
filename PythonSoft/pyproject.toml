@@ -1,0 +1,57 @@
+[project]
+name = "moller"
+description = "package for MOLLER Experiment"
+dynamic = ["version"]
+
+authors = [
+    { name = "Bryerton Shaw", email = "bryerton@triumf.ca" }
+]
+
+maintainers = [
+    { name = "Bryerton Shaw", email = "bryerton@triumf.ca" }
+]
+
+readme.file = "README.md"
+readme.content-type = "text/markdown"
+
+license.file = "LICENSE"
+
+dependencies = [
+    "numpy",
+    "matplotlib",
+    "pyzmq"
+]
+
+[project.optional-dependencies]
+dev = [
+    "tox"
+]
+
+[project.scripts]
+moller-ctl = "moller.__main__:main"
+
+[tool.setuptools]
+packages = ["moller"]
+
+[tool.setuptools.dynamic]
+version = {attr = "moller.__version__"}
+
+[build-system]
+requires = [ "setuptools >= 35.0.2", "wheel >= 0.29.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.distutils.egg_info]
+egg_base = "output"
+
+[tool.setuptools.package-data]
+moller = ['moller_regs.json']
+
+[tool.tox]
+legacy_tox_ini = """
+[tox]
+envlist = py310
+
+[testenv]
+deps = pytest >= 3.0.0, <4
+commands = pytest
+"""
