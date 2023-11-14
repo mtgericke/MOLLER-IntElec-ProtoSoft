@@ -1,7 +1,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 //
-// name: CMMonitor.cxx
-// date: 5-29-2021
+// name: CMMonitorDef.h
+// date: 11-13-2023
 // auth: Michael Gericke 
 //
 ///////////////////////////////////////////////////////////////////////////////
@@ -35,6 +35,23 @@
 #define ADC_CONVERSION 0.00003125         // 2^-17*4.096  V/bin
 #define TS_TO_NS  4                       // nanoseconds per timestamp tick
 #define TS_CONVERSION  17                 // Number of cycles to convert (68ns  / 4ns) at 250Mhz ADC clock
+
+#define MAX_DELAY_VALUE  511
+#define CLOCKS_TO_NANOSECONDS  4  // There are 4ns per clock
+#define MIN_CONVERT_CLOCKS  17
+#define MAX_CONVERT_CLOCKS  255
+#define ADC_CONVERT_CLOCKS (MIN_CONVERT_CLOCKS*2)
+#define ADC_CONVERT_TIME (ADC_CONVERT_CLOCKS * CLOCKS_TO_NANOSECONDS)
+#define ADC_SAMPLE_RATE (1.0e9/(ADC_CONVERT_TIME)) // Dividing the sample rate by 2 to prevent errors in transmission
+
+#define ADC_PACKET_SIZE 0x2004
+#define ADC_SAMPLES_SIZE (ADC_PACKET_SIZE - 4)
+
+#define ADC_MAX_VOLTAGEpp 4.096
+#define ADC_RESOLUTION  (ADC_MAX_VOLTAGEpp / pow(2, 18)
+#define VOLT_MAX  (ADC_MAX_VOLTAGEpp / 2)
+#define VOLT_MIN = -(ADC_MAX_VOLTAGEpp / 2)
+
 
 #define e_CHARGE                1.60217733e-19 //electron charge in Coulombs
 #define v_LIGHT                 2.99792458e8   //speed of light in m/s

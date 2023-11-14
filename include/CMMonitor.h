@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 // name: CMMonitor.h
-// date: 12-22-2022
+// date: 11-13-2023
 // auth: Michael Gericke
 // mail: Michael.Gericke@umanitoba.ca
 //
@@ -44,12 +44,14 @@
 #include <TVirtualFFT.h>
 #include <TSlider.h>
 #include <TFrame.h>
+#include <cerrno>
 
 #include <string.h>
 #include <time.h>
 #include <iostream>
 #include <iomanip>
-#include <zmq.h>
+#include <stdlib.h>
+#include "/usr/local/include/zmq.h"
 #include <fstream>
 #include <pthread.h>
 #include <assert.h>
@@ -96,6 +98,7 @@ struct rawPkt{
 
   uint8_t *data;
   size_t length;
+  uint32_t convClk;
 
 };
 
@@ -109,6 +112,9 @@ struct pkt{
   uint32_t ch1_num;       
   uint32_t PreSc;
 };
+
+enum SockType {CNTRL,DATA};
+enum ActType {READ,WRITE};
 
 
 class DataSamples{
@@ -154,7 +160,6 @@ struct rArgs{
   int NSamples;
   void *sock;
   rawPkt* pkt;
-
 };
 
 struct Settings{
@@ -165,11 +170,15 @@ struct Settings{
   int currentData1;
   int PreScFactor;
   double RunLength;
+  int SamplingDelay;
   
 };
 
 
 static volatile int wait_for_shared_socket = 0;
+
+//#define ZMQ_HAVE_POLLER
+//#define ZMQ_BUILD_DRAFT_API
 
 
 class CMMonitor : public TGMainFrame {
@@ -256,7 +265,9 @@ private:
   string                  IP;
   string                  server;
   void                   *context;
-  void                   *socket;
+  //void                   *socket;
+  void                   *cntr_socket;
+  void                   *data_socket;
   pthread_t               thread_cap_id;
   pthread_t               thread_plot_id;
 
@@ -299,15 +310,20 @@ private:
 
   TSlider                *xslider1;
   TSlider                *xslider2;
+
+  uint32_t               cntrMsg[3];
   
   void                    SetIP();
+  void*                   GetSocket(SockType type);
+  Bool_t                  ADCMessage(ActType type, void* socket, uint32_t addr, uint32_t data, uint32_t *msgret);         
+  //Bool_t                  ReadADCMessage(void* socket, uint32_t addr);         
+  Bool_t                  ReadADCSamples(void* ctl_socket, void* dat_socket, int num_samples, Bool_t TSReset = false);         
   void                    MakeCurrentModeTab();
   void                    MakeAsymmetryTab();
   void                    MakeMenuLayout();
   void                    MakeUtilityLayout();
   void                    MakeGateLayout();
   
-
   Bool_t                  ConnectBoard();
   // void                    GetServerData(queue<pkt*>*, pkt*, Bool_t*);
   static void            *GetServerData(void *vargp);

@@ -1,12 +1,12 @@
 ///////////////////////////////////////////////////////////////////////////////
 //
 // name: CMMonitor.cxx
-// date: 5-29-2021
+// date: 11-13-2023
 // auth: Michael Gericke 
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-#include <stdlib.h>
+//#include <stdlib.h>
 #include <CMMonitor.h>
 
 CMMonitor::CMMonitor(const TGWindow *p, UInt_t w, UInt_t h)
@@ -26,11 +26,23 @@ CMMonitor::CMMonitor(const TGWindow *p, UInt_t w, UInt_t h)
       *SettingsFile >> iSettings.currentData1;
       *SettingsFile >> iSettings.PreScFactor;
       *SettingsFile >> iSettings.RunLength;
+      *SettingsFile >> iSettings.SamplingDelay;
 
       //cout << iSettings.IP.data() << endl;
       //cout << iSettings.currentRun << endl;
       SettingsFile->close();
-    }    
+    }
+    else{
+
+      iSettings.IP = "192.168.2.227";
+      iSettings.currentRun = 1;
+      iSettings.currentData0 = 1;
+      iSettings.currentData1 = 2;
+      iSettings.PreScFactor = 1;
+      iSettings.RunLength = 1;
+      iSettings.SamplingDelay = 0;
+      delete SettingsFile;
+    }
   }
   else{
     iSettings.IP = "192.168.2.227";
@@ -39,6 +51,7 @@ CMMonitor::CMMonitor(const TGWindow *p, UInt_t w, UInt_t h)
     iSettings.currentData1 = 2;
     iSettings.PreScFactor = 1;
     iSettings.RunLength = 1;
+    iSettings.SamplingDelay = 0;
   }
   
   dNRunsSeq = 1;
@@ -49,7 +62,7 @@ CMMonitor::CMMonitor(const TGWindow *p, UInt_t w, UInt_t h)
   DataRooFile = NULL;
   
   SamplesOutFileName = Form("Int_Run_%03d.dat",iSettings.currentRun);
-  ReadNSamples = iSettings.RunLength*SAMPLES_PER_SECOND/iSettings.PreScFactor;
+  ReadNSamples = iSettings.RunLength *SAMPLES_PER_SECOND/iSettings.PreScFactor;
   RUN_START = false;
   RUN_STOP = false;
   RUN_ON = false;
@@ -58,7 +71,9 @@ CMMonitor::CMMonitor(const TGWindow *p, UInt_t w, UInt_t h)
   RunStartIndex = 0;
   
   readThreadArgs = new rArgs;
-  socket = NULL;
+  //socket = NULL;
+  cntr_socket = NULL;
+  data_socket = NULL;
   context = NULL;
 
   fftTmpCh0 = NULL;
@@ -84,22 +99,283 @@ CMMonitor::CMMonitor(const TGWindow *p, UInt_t w, UInt_t h)
   MapSubwindows();
   Resize(GetDefaultSize());
   MapWindow();
+
+  //  uint8_t *msg = NULL;
+  //GetSocket(CNTRL);
+  //ADCMessage(WRITE,cntr_socket,{0x44},{0x84212004},&msg,0);
+  //cout << "Data 1 = ch: " << std::dec << ((msg >> 16) & 0x000F) << endl;
+  //cout << "Data 2 = ch: " <<  std::dec << ((msg >> 20) & 0x00F) << endl;
+  //cout << "Rate prescale = " << std::dec << ((msg >> 24) & 0x0F) << endl;
+  //cout << "Data packet size = " <<  std::dec << (msg & 0x0000FFFF) << endl;
+  
+  //delete msg;
+  //msg = NULL;
+  //ADCMessage(WRITE,cntr_socket,{0x48},{0x80000000 | (int(ADC_SAMPLE_RATE) << 16)},&msg,0);
+  //ReadADCSamples(cntr_socket, 0, 0, 0);
 }
+
+void* CMMonitor::GetSocket(SockType type)
+{
+  string tmp = iSettings.IP.data();
+
+  if(type == DATA){
+    server = "tcp://"+ tmp + ":5556";
+    cout << "Connecting to server on port 5556:  " << server.data() << endl;
+
+    context = zmq_ctx_new();
+    zmq_ctx_set(context, ZMQ_IO_THREADS, 4);
+    data_socket = zmq_socket(context,ZMQ_SUB);
+    zmq_setsockopt(data_socket, ZMQ_SUBSCRIBE, "ADC",3);
+    //zmq_setsockopt(socket, ZMQ_RCVBUF, "", SAMPLES_PER_SECOND);
+      
+    if(zmq_connect (data_socket, server.data()) != 0) {
+      cout << "Failed to Bind ZMQ to port 5556 - quitting this process\n" << endl;;
+      return 0;
+    }
+    else   
+      return data_socket;
+  }
+  else if(type == CNTRL){
+    errno = 0;
+    server = "tcp://"+ tmp + ":5555";
+    cout << "Connecting to server on port 5555:  " << server.data() << endl;
+    context = zmq_ctx_new();
+    zmq_ctx_set(context, ZMQ_IO_THREADS, 4);
+    cntr_socket = zmq_socket(context,ZMQ_REQ);
+
+
+//     try{
+//         std::cout << "Connecting..." << std::endl;
+//         client->connect (server_name.c_str());
+
+//         zmq::message_t request (5);
+//         memcpy (request.data (), "Hello", 5);
+//         std::cout << "Sending Hello " << std::endl;
+//         client->send (request);
+// }catch(std::exception& e){
+//         std::cout << "E: connect failed with error " << e.what() << std::endl;    
+// }
+    
+    if(zmq_connect (cntr_socket, server.data()) != 0) {
+      cout << "Failed to Bind ZMQ to port 5555 - quitting this process\n" << endl;
+      
+      switch (errno){
+      case EAGAIN:
+	cout << "ZMQ Error = EAGAIN" << endl;
+	break;
+      case ENOTSUP:
+	cout << "ZMQ Error = ENOTSUP" << endl;
+	break;
+      case EFSM:
+	cout << "ZMQ Error = EFSM" << endl;
+	break;
+      case ETERM:
+	cout << "ZMQ Error = ETERM" << endl;
+	break;
+      case ENOTSOCK:
+	cout << "ZMQ Error = ENOTSOCK" << endl;
+	break;
+      case EINTR:
+	cout << "ZMQ Error = EINTR" << endl;
+	break;
+      }
+
+
+      return 0;
+    }
+    else   {
+      return cntr_socket;
+    }
+  }
+  return 0;
+}
+
+Bool_t CMMonitor::ADCMessage(ActType Act, void* socket, uint32_t addr, uint32_t data, uint32_t *msgret)
+{
+  if(!socket) return 0;
+
+  int len;
+  zmq_msg_t Resp;
+  zmq_msg_t msg;
+  uint8_t *respm;
+  int fl;
+  
+  if(Act == WRITE){
+    cntrMsg[0] = (uint32_t)('w');
+    cntrMsg[1] = (uint32_t)(addr/4);
+    cntrMsg[2] = data;
+  }
+  if(Act == READ){
+    cntrMsg[0] = (uint32_t)('r');
+    cntrMsg[1] = (uint32_t)(addr/4);
+    cntrMsg[2] = 0;  
+  }
+
+  // cout << cntrMsg[0] << endl;
+  // cout << std::hex << cntrMsg[1] << endl;
+  // cout << std::hex << cntrMsg[2] << endl;
+  
+  int al = zmq_msg_init_data(&msg,cntrMsg,12,0,0);//zmq_msg_init_size(&msg,12);
+  if(!al){
+
+
+    //cout << sizeof(tmsg) << endl;
+    //cout << sizeof(tadd) << endl;
+    // cout << std::hex << *tmsg << endl;
+    // tmsg = addr;
+    // cout << std::hex << *tmsg << endl;
+    // *tmsg = *tmsg << 16;
+    // cout << std::hex << *tmsg << endl;
+    
+    zmq_msg_send(&msg,socket,0);
+  
+    al = zmq_msg_init(&Resp);
+    if(!al){
+      errno = 0;
+      fl = zmq_msg_recv (&Resp,socket,0);
+      if(fl == -1){
+	switch (errno){
+	case EAGAIN:
+	  cout << "ZMQ Error = EAGAIN" << endl;
+	  break;
+	case ENOTSUP:
+	  cout << "ZMQ Error = ENOTSUP" << endl;
+	  break;
+	case EFSM:
+	  cout << "ZMQ Error = EFSM" << endl;
+	  break;
+	case ETERM:
+	  cout << "ZMQ Error = ETERM" << endl;
+	  break;
+	case ENOTSOCK:
+	  cout << "ZMQ Error = ENOTSOCK" << endl;
+	  break;
+	case EINTR:
+	  cout << "ZMQ Error = EINTR" << endl;
+	  break;
+	}
+      }else{
+   
+	respm = (uint8_t*)zmq_msg_data(&Resp);
+	len = zmq_msg_size(&Resp);
+
+	if(len > 0 && respm[0] == 'r'){	
+	  uint32_t tmp2;
+	  memcpy(&tmp2,&(respm)[4],4);
+	  *msgret = tmp2;
+	  // uint8_t* tmp = (uint8_t*)malloc(len);
+	  // memcpy(tmp,respm,len);
+	  // if(mlen) *mlen = len;
+
+
+
+	  //memcpy(&num_words,&(rPkt->data)[bi+0],2);
+	  
+	  if(Act == WRITE){
+	    cout << "Message: 0x" << std::hex << data << " written." << endl;
+	  }
+	  if(Act == READ){
+	    cout << "Message: 0x" << std::hex << tmp2 << " received." << endl;
+	  }
+	  	  
+	  return 1;
+
+	}
+	else
+	  return 0;
+      }          
+    }
+  }
+  else{
+    cout << "WriteADCMessage: Can't allocate message size" << endl;
+    return 0;
+  }
+  return 0;
+}
+
+
+Bool_t CMMonitor::ReadADCSamples(void* ctl_socket, void* dat_socket, int num_samples, Bool_t TSReset)
+{
+  // uint32_t msg;
+  // int fl, len;
+  // uint32_t convert_time = 0;
+  // uint8_t *data;
+  // int sample_count = 0;
+  // zmq_msg_t message;
+  // zmq_msg_t smplData;
+
+  // uint16_t num_words;
+  // uint32_t num_pkt;
+  // char nb;
+  
+  
+
+  // if(ADCMessage(READ,ctl_socket,{0x48},0,&msg)){
+    
+  //   convert_time = (msg >> 16) & 0xFF;
+    
+  //   //cout << "Message = " << msg  << endl;
+  //   //cout << "Current convert time = " << ((msg >> 16) & 0xFF) << endl;
+    
+  //   if(convert_time < MIN_CONVERT_CLOCKS)
+  //     convert_time = MIN_CONVERT_CLOCKS;
+	
+
+  //   void *poller = zmq_poller_new ();
+  //   zmq_poller_add (poller, dat_socket, ZMQ_POLLIN, NULL);
+
+  //   zmq_poller_event_t evnts;
+  //   while(sample_count < num_samples){
+
+  //     int ne = zmq_poller_wait_all (poller, evnts, 1, 5000);
+  //     //assert (rc >= 0);
+  //     if(ne == 1 && evnts.socket == dat_socket && (evnts.events & ZMQ_POLLIN)){
+
+  // 	//first part of the received message should identify the sender as the ADC board 
+  // 	zmq_msg_init (&message);
+  // 	zmq_msg_recv (&message,dat_socket,0);
+  // 	data = (uint8_t*)zmq_msg_data(&message);
+  // 	len = zmq_msg_size(&message);
+	
+  // 	if(strncmp("ADC", (char*)data, 3) == 0) {
+
+  // 	  zmq_msg_init (&smplData);
+  // 	  zmq_msg_recv (&smplData,dat_socket,0);
+	  
+  // 	  data = (uint8_t*)zmq_msg_data(&smplData);
+  // 	  len = zmq_msg_size(&smplData);
+	    
+  // 	  memcpy(&(((rArgs*)vargp)->pkt->data)[data_written], data, len);
+	    
+  // 	  zmq_msg_close(&smplData);
+  // 	}
+  // 	zmq_msg_close (&message);
+  //     }
+
+  //   }
+    
+  //   return 0;
+  // }
+  return 0;
+}
+
+
 
 Bool_t CMMonitor::ConnectBoard()
 {  
   TString ip;
   Bool_t retflag;
   string tmp = iSettings.IP.data();
-  server = "tcp://"+ tmp + ":5556";
+  server = "tcp://"+ tmp + ":5555";
   cout << "Connecting to server:  " << server.data() << endl;
 
   context = zmq_ctx_new();
   zmq_ctx_set(context, ZMQ_IO_THREADS, 4);
 
-
   return 1;
 }
+
+
 
 void CMMonitor::StartDataCollection()
 {
@@ -107,14 +383,27 @@ void CMMonitor::StartDataCollection()
     CloseDataFile();
   
   string tmp = iSettings.IP.data();
-  char c0[10];
-  memset(c0,'\0',10);
-  sprintf(c0, "%X", iSettings.currentData0-1);
-  string ch0 = c0;
-  char c1[10];
-  memset(c1,'\0',10);
-  sprintf(c1, "%X", iSettings.currentData1-1);
-  string ch1 = c1;
+  uint32_t prsc = iSettings.PreScFactor-1;
+  uint32_t ch0 = iSettings.currentData0-1; 
+  uint32_t ch1 = iSettings.currentData1-1; 
+  uint32_t cntrmsg = 0x80000000 | (prsc << 24) | (ch0 << 16) | (ch1 << 20) | (int(ADC_PACKET_SIZE));
+  uint32_t reg1 = 0x44; //ADC register to set the control parameters in message above
+  uint32_t ratemsg = 0x80000000 | (iSettings.SamplingDelay << 16);
+  uint32_t reg2 = 0x48; //ADC register to set the sample rate
+  uint32_t retmsg;
+  uint32_t convert_clocks;
+  void* csocket;
+  void* dsocket;
+
+  
+  // char c0[10];
+  // memset(c0,'\0',10);
+  // sprintf(c0, "%X", iSettings.currentData0-1);
+  // string ch0 = c0;
+  // char c1[10];
+  // memset(c1,'\0',10);
+  // sprintf(c1, "%X", iSettings.currentData1-1);
+  // string ch1 = c1;
 
   rawPkt *pkt = NULL;
 
@@ -139,27 +428,48 @@ void CMMonitor::StartDataCollection()
       iSettings.currentRun++;
       dRunEntry->SetNumber(iSettings.currentRun);
 
-      if(socket) {
-	zmq_close(socket);
-	socket = NULL;
+      //GetSocket(...) sets the global pointers cntr_socket or data_socket
+      //make sure they are close before opening them again for a new message/data transfer.
+      if(data_socket) {
+	zmq_close(data_socket);
+	data_socket = NULL;
+      }
+      if(cntr_socket) {
+	zmq_close(cntr_socket);
+	cntr_socket = NULL;
       }
 
-      string contrl = "python3 moller_ctrl.py "+ tmp + " write 0x44 " + "0x8" + std::to_string(iSettings.PreScFactor-1) + ch0 + ch1 +"1000"+'\n';
+      //Set the board up with the correct channels, prescale, and packet size 
+      csocket = GetSocket(CNTRL);
+      ADCMessage(WRITE,csocket,reg1,cntrmsg,&retmsg);
+      ADCMessage(WRITE,csocket,reg2,ratemsg,&retmsg);
+
+      //Read back the convert time used in the conversion of the time stamp
+      ADCMessage(READ,csocket,reg2,0,&retmsg);
+      convert_clocks = (retmsg >> 16) & 0xFF;
+      if(convert_clocks < MIN_CONVERT_CLOCKS)
+	convert_clocks = MIN_CONVERT_CLOCKS;
+
+
+
+      // string contrl = "python3 moller_ctrl.py "+ tmp + " write 0x44 " + "0x8" + std::to_string(iSettings.PreScFactor-1) + ch0 + ch1 +"1000"+'\n';
       
-      socket = zmq_socket(context,ZMQ_SUB);
+      // data_socket = zmq_socket(context,ZMQ_SUB);
+      dsocket = GetSocket(DATA);
       
-      zmq_setsockopt(socket, ZMQ_SUBSCRIBE, "ADC",3);
-      zmq_setsockopt(socket, ZMQ_RCVBUF, "", SAMPLES_PER_SECOND);
+      // zmq_setsockopt(data_socket, ZMQ_SUBSCRIBE, "ADC",3);
+      // zmq_setsockopt(data_socket, ZMQ_RCVBUF, "", SAMPLES_PER_SECOND);
       
-      if(zmq_connect (socket, server.data()) != 0) {
-	printf("Failed to Bind ZMQ to port 5556 - quitting this process\n");
-	return;
-      }
+      // if(zmq_connect (data_socket, server.data()) != 0) {
+      // 	printf("Failed to Bind ZMQ to port 5556 - quitting this process\n");
+      // 	return;
+      // }
            
-      cout << contrl << endl;
-      system(contrl.data());
+      // cout << contrl << endl;
+      // system(contrl.data());
       
       pkt = new rawPkt;
+      pkt->convClk = convert_clocks;
       if(!pkt){
 	return;
       }
@@ -171,7 +481,7 @@ void CMMonitor::StartDataCollection()
       readThreadArgs->FName = SamplesOutFileName.data();
       cout << "Writing to: " << SamplesOutFileName.data() << endl;
       readThreadArgs->NSamples = ReadNSamples;
-      readThreadArgs->sock = socket;
+      readThreadArgs->sock = dsocket;
       readThreadArgs->pkt = pkt;
       
       pthread_create(&thread_cap_id, NULL, GetServerData, (void*)readThreadArgs);
@@ -231,8 +541,14 @@ void *CMMonitor::GetServerData(void *vargp)
   uint64_t samples_written;
   uint64_t data_written;
   uint64_t pkts_rx;
-  zmq_msg_t message;
-  zmq_msg_t msg_samples;
+  zmq_msg_t header;
+  zmq_msg_t samples;
+  int ne;
+
+  void *poller = zmq_poller_new();
+  zmq_poller_event_t evnts;
+  zmq_poller_add (poller, ((rArgs*)vargp)->sock, NULL, ZMQ_POLLIN);
+
 
   
   SamplesOutFile = fopen(((rArgs*)vargp)->FName.data(), "wb");
@@ -244,41 +560,46 @@ void *CMMonitor::GetServerData(void *vargp)
   data_written = 0;
   pkts_rx = 0;
 
-  cout << "NSample = " << ((rArgs*)vargp)->NSamples << endl;
+  cout << std::dec << "NSample = " << ((rArgs*)vargp)->NSamples << endl;
   
   while(samples_written < 2.0*((rArgs*)vargp)->NSamples) {
     //The factor of 2 needs to be there, because I want to specify the number of samples per channel.
     //However the way the ZMQ code is written below, it reads both channels at the same time. Which means
     //that NSamples above would be split between the two channels.
-
-    zmq_msg_init (&message);
-    zmq_msg_recv (&message, ((rArgs*)vargp)->sock, 0);
     
-    data = (uint8_t*)zmq_msg_data(&message);
-    len = zmq_msg_size(&message);
-    
-    if(strncmp("ADC", (char*)data, 3) == 0) {
+    ne = zmq_poller_wait_all (poller, &evnts, 1, 5000);
+    if(ne == 1 && evnts.socket == ((rArgs*)vargp)->sock && (evnts.events & ZMQ_POLLIN)){
 
-      zmq_msg_init (&msg_samples);
-      zmq_msg_recv (&msg_samples, ((rArgs*)vargp)->sock, 0);
+      zmq_msg_init (&header);
+      zmq_msg_recv (&header, ((rArgs*)vargp)->sock, 0);
       
-      pkts_rx++;
-      data = (uint8_t*)zmq_msg_data(&msg_samples);
-      len = zmq_msg_size(&msg_samples);
+      data = (uint8_t*)zmq_msg_data(&header);
+      len = zmq_msg_size(&header);
       
-      memcpy(&(((rArgs*)vargp)->pkt->data)[data_written], data, len);
+      if(strncmp("ADC", (char*)data, 3) == 0) {
+	
+	zmq_msg_init (&samples);
+	zmq_msg_recv (&samples, ((rArgs*)vargp)->sock, 0);
+	
+	pkts_rx++;
+	data = (uint8_t*)zmq_msg_data(&samples);
+	len = zmq_msg_size(&samples);
+	
+	memcpy(&(((rArgs*)vargp)->pkt->data)[data_written], data, len);
+	
+	data_written += len;
+	samples_written += (len - 16) / 4;
+	
+	// memcpy(pkt->data,data,len);
       
-      data_written += len;
-      samples_written += (len - 16) / 4;
-
-      // memcpy(pkt->data,data,len);
-      
-      zmq_msg_close(&msg_samples);
-    }
-    zmq_msg_close (&message);
+	zmq_msg_close(&samples);
+      }
+      zmq_msg_close (&header);
     // data_written += 100000;
     // samples_written += (100000-16)/4;
+    }
   }
+  zmq_poller_destroy (&poller);  
   
   fwrite(((rArgs*)vargp)->pkt->data, data_written, 1, SamplesOutFile);
   fclose(SamplesOutFile);
@@ -371,17 +692,17 @@ void CMMonitor::FillDataPlots()
 	  ch0_data = ch0 >> 14;
 	  ch1_data = ch1 >> 14;
 	  PreSc = ((ch0 >> 4) & 0x7F)+1;
-	  ch0_num = ch0 & 0xF;
-	  ch1_num = ch1 & 0xF;
+	  ch0_num = (ch0 & 0xF) + 1;
+	  ch1_num = (ch1 & 0xF) + 1;
 
 	  gate1 = (ch0 >> 12) & 0x1;
 	  gate2 = (ch0 >> 13) & 0x1;
 	  
 	  if(ch0_num == ch1_num){
-	    sTime = (tStamp + ((n*2) * TS_CONVERSION * PreSc)) *  TS_TO_NS;
+	    sTime = (tStamp + ((n*2) * rPkt->convClk * PreSc)) *  TS_TO_NS;
 	  }
 	  else{
-	    sTime = (tStamp + (n * TS_CONVERSION * PreSc)) * TS_TO_NS;
+	    sTime = (tStamp + (n * rPkt->convClk * PreSc)) * TS_TO_NS;
 	  }
 
 	  if(!p){
@@ -451,7 +772,10 @@ void CMMonitor::FillDataPlots()
 	  
 	  GateGr[0]->SetPoint(p+RunStartIndex,cTime*1e-6,gate1);
 	  GateGr[1]->SetPoint(p+RunStartIndex,cTime*1e-6,gate2);
-  
+
+	  if((sTime - sTimeP) > 68)
+	    cout << "tDiff = " << (sTime - sTimeP) << endl;
+
 	  sTimeP = sTime;
 	  cTimeP = cTime;
 	  tStampP = tStamp;
@@ -489,6 +813,7 @@ void CMMonitor::FillDataPlots()
 	Ch1ListBox->Select(iSettings.currentData1+3100,false);
 	dSmplDivEntry->SetNumber((double)PreSc);
 	iSettings.RunLength = ceil(p*PreSc/SAMPLES_PER_SECOND);
+	iSettings.SamplingDelay = 0;
 	dRunTimeEntry->SetNumber(p*PreSc/SAMPLES_PER_SECOND);
       }
       thisData->RunLength = iSettings.RunLength;
@@ -689,7 +1014,7 @@ void CMMonitor::FillRootTree()
 	    ch0_ncnt++;
 	    ch1_ncnt++;
 	  }
-	    
+	  
 	  sTimeP = sTime;
 	  cTimeP = cTime;
 	  tStampP = tStamp;
@@ -717,6 +1042,7 @@ void CMMonitor::FillRootTree()
 	Ch1ListBox->Select(iSettings.currentData1+3100,false);
 	dSmplDivEntry->SetNumber((double)PreSc);
 	iSettings.RunLength = ceil(p*PreSc/SAMPLES_PER_SECOND);
+	iSettings.SamplingDelay = 0;
 	dRunTimeEntry->SetNumber(p*PreSc/SAMPLES_PER_SECOND);
       }
       thisData->RunLength = iSettings.RunLength;
@@ -1714,7 +2040,7 @@ void CMMonitor::WriteSettings()
       *SettingsOutFile << iSettings.currentData1  << '\n';
       *SettingsOutFile << iSettings.PreScFactor  << '\n';
       *SettingsOutFile << iSettings.RunLength  << '\n';
-      
+      *SettingsOutFile << iSettings.SamplingDelay << '\n';
       SettingsOutFile->close();
     }    
   }
@@ -1910,7 +2236,7 @@ Bool_t CMMonitor::ProcessMessage(Long_t msg, Long_t parm1, Long_t parm2)
 	break;
 	
       case M_FILE_EXIT:
-	zmq_close(socket);
+	zmq_close(data_socket);
 
 	CloseWindow();   // this also terminates theApp
 	break;
@@ -1932,7 +2258,7 @@ Bool_t CMMonitor::ProcessMessage(Long_t msg, Long_t parm1, Long_t parm2)
 	break;
 
       case M_CONNECT:
-	ConnectBoard();
+	//ConnectBoard();
 	StartDataCollection();
 	break;
 
