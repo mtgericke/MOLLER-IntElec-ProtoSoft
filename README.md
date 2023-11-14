@@ -96,7 +96,7 @@
 
 
 
-#### Hardware
+## Hardware
 
 This program looks for the 16 ADC board with the specified ip address. The board should be powered and booted, which
 it does normally on power on. Look for the 4 vertical LEDs pattern at the front of the board, which
