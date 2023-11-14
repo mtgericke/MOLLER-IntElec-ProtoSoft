@@ -132,7 +132,7 @@ The
    1. `unzip -p ${SDCARD_ZIP} BOOT.BIN >/media/${USER}/${SDCARD_BOOT_LABEL}/BOOT.BIN`
    2. `unzip -p ${SDCARD_ZIP} boot.scr >/media/${USER}/${SDCARD_BOOT_LABEL}/boot.scr`
    3. `unzip -p ${SDCARD_ZIP} Image >/media/${USER}/${SDCARD_BOOT_LABEL}/Image`
-   4. `unzip -p ${SDCARD_ZIP} rootfs.cpio.gz.u-boot >/media/${USER}/${SDCARD_BOOT_LABEL}/rootfs.cpio.gz.u`
+   4. `unzip -p ${SDCARD_ZIP} rootfs.cpio.gz.u-boot >/media/${USER}/${SDCARD_BOOT_LABEL}/rootfs.cpio.gz.u-boot`
    
 Notes:
 
