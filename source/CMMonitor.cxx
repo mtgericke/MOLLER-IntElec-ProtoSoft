@@ -2081,7 +2081,7 @@ Bool_t CMMonitor::ProcessMessage(Long_t msg, Long_t parm1, Long_t parm2)
 
       case M_SDIV_SELECT:
 	iSettings.PreScFactor =  dSmplDivEntry->GetNumber();
-	cout << "Pre Scale: " << iSettings.PreScFactor << endl;
+	// cout << "Pre Scale: " << iSettings.PreScFactor << endl;
 	if(iSettings.PreScFactor > 0)
 	  ReadNSamples = iSettings.RunLength*SAMPLES_PER_SECOND/iSettings.PreScFactor;
 	break;
