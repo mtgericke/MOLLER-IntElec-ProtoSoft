@@ -40,6 +40,8 @@
 
 ## Running CMMonitor
 
+![ROOT Data Tree Output](Docs/CMMonitor.png)
+
 * './CMMonitor' (without commandline arguments - connection can be set via menu)
 * Follow these steps:
 * Set the ip address from the menu (only has to be done ones when the address changes)
