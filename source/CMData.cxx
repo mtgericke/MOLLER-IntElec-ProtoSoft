@@ -590,6 +590,11 @@ void CMData::FillRootTree()
 	    thisData->gate2.push_back(gate2);
 	    thisData->tStmp.push_back(cTime*1e-6);
 	  }
+	  if((sTime - sTimeP) > TS_TO_NS*TS_CONVERSION*PreSc){	    
+	    thisData->tStmpDiff.push_back((sTime - sTimeP)*1e-6);
+	    thisData->tStmpDiffTime.push_back(cTime*1e-6);
+	  }
+
 	  thisData->ch0_sum += ch0_data*ADC_CONVERSION;
 	  thisData->ch1_sum += ch1_data*ADC_CONVERSION;
 	  thisData->ch0_ssq += ch0_data*ADC_CONVERSION*ch0_data*ADC_CONVERSION;

@@ -773,9 +773,6 @@ void CMMonitor::FillDataPlots()
 	  GateGr[0]->SetPoint(p+RunStartIndex,cTime*1e-6,gate1);
 	  GateGr[1]->SetPoint(p+RunStartIndex,cTime*1e-6,gate2);
 
-	  if((sTime - sTimeP) > 68)
-	    cout << "tDiff = " << (sTime - sTimeP) << endl;
-
 	  sTimeP = sTime;
 	  cTimeP = cTime;
 	  tStampP = tStamp;
@@ -978,6 +975,11 @@ void CMMonitor::FillRootTree()
 	  thisData->ch0_ssq += ch0_data*ADC_CONVERSION*ch0_data*ADC_CONVERSION;
 	  thisData->ch1_ssq += ch1_data*ADC_CONVERSION*ch1_data*ADC_CONVERSION;
 	  thisData->tStmp.push_back(cTime*1e-6);
+
+	  if((sTime - sTimeP) > TS_TO_NS*TS_CONVERSION*PreSc){	    
+	    thisData->tStmpDiff.push_back((sTime - sTimeP)*1e-6);
+	    thisData->tStmpDiffTime.push_back(cTime*1e-6);
+	  }
 
 	  if(gate1 != g1cr){g1cr = gate1; flc1++;}
 
@@ -2070,7 +2072,7 @@ Bool_t CMMonitor::ProcessMessage(Long_t msg, Long_t parm1, Long_t parm2)
 	//cout << dRunEntry->GetNumber() << endl;
 	iSettings.RunLength = dRunTimeEntry->GetNumber();
 	ReadNSamples = iSettings.RunLength*SAMPLES_PER_SECOND/iSettings.PreScFactor;
-	cout << "Run Time: " << iSettings.RunLength  << endl;
+	//cout << "Run Time: " << iSettings.RunLength  << endl;
 	break;
 
       case M_RUN_SEQ_SELECT:
