@@ -385,7 +385,7 @@ void CMData::StartDataCollection()
       // pthread_create(&thread_cap_id, NULL, GetServerData, (void*)readThreadArgs);
       // dNRunSeqCnt++;
     iSettings.currentRun++; 
-    if(dNRunSeqCnt == 1){
+    if(dNRunSeqCnt == 0){
       
       fillThreadArgs = new fArgs;
       fillThreadArgs->mQue = &dataQue;
@@ -532,6 +532,8 @@ void *CMData::GetServerData(void *vargp)
 
 void* CMData::FillRootTreeThread(void *vargp)
 {
+  sleep(1);
+  
   pkt *data;
   rawPkt *rPkt;
 
