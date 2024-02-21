@@ -125,6 +125,8 @@ public:
   virtual ~DataSamples(){};
   
   vector<double> tStmp;
+  vector<double> tStmpDiff;
+  vector<double> tStmpDiffTime;
   vector<double> ch0_data;
   vector<double> ch1_data;
   vector<uint32_t> gate1;

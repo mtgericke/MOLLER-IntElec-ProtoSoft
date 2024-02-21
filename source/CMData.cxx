@@ -151,7 +151,6 @@ CMData::CMData(int *argc, char **argv)
 
   //cout << dNRunsSeq << endl << endl;
       
-  readThreadArgs = new rArgs;
   cntr_socket = NULL;
   data_socket = NULL;
   context = NULL;
@@ -324,20 +323,21 @@ void CMData::StartDataCollection()
   rawPkt *pkt = NULL;
 
   int flag = 0;
+  //int dNRunSeqCnt = 0;
 
+  
   ReadNSamples = iSettings.RunLength *SAMPLES_PER_SECOND/iSettings.PreScFactor;
-    
+  //dNRunSeqCnt = 0;
   for(int dNRunSeqCnt = 0; dNRunSeqCnt < dNRunsSeq; dNRunSeqCnt++ ){
-
-    if(!IsRootFileOpen()){
-
-      ROOTFileName = Form("Int_Run_%03d-%03d.root",iSettings.currentRun,iSettings.currentRun+dNRunsSeq-1);	
-      OpenRootFile(ROOTFileName.Data());
-    }
-
+      
+    // if(!IsRootFileOpen()){
+      
+    //   ROOTFileName = Form("Int_Run_%03d-%03d.root",iSettings.currentRun,iSettings.currentRun+dNRunsSeq-1);	
+    //   OpenRootFile(ROOTFileName.Data());
+    // }
+    
     SamplesOutFileName = Form("Int_Run_%03d.dat",iSettings.currentRun);
-    iSettings.currentRun++;
- 
+    
     //GetSocket(...) sets the global pointers cntr_socket or data_socket
     //make sure they are close before opening them again for a new message/data transfer.
     if(data_socket) {
@@ -359,49 +359,99 @@ void CMData::StartDataCollection()
     convert_clocks = (retmsg >> 16) & 0xFF;
     if(convert_clocks < MIN_CONVERT_CLOCKS)
       convert_clocks = MIN_CONVERT_CLOCKS;
-      
+    
     dsocket = GetSocket(DATA);      
-      
+    
     pkt = new rawPkt;
-    pkt->convClk = convert_clocks;
     if(!pkt){
       return;
     }
+    pkt->convClk = convert_clocks;
+    pkt->run = iSettings.currentRun;
     pkt->data = (uint8_t*)malloc(MAX_ALLOC);
     if(!pkt->data) {
       return;
     }
 
+    readThreadArgs = new rArgs;
     readThreadArgs->FName = SamplesOutFileName.data();
     cout << "Writing to: " << SamplesOutFileName.data() << endl;
     readThreadArgs->NSamples = ReadNSamples;
     readThreadArgs->sock = dsocket;
     readThreadArgs->pkt = pkt;
-
+          
     GetServerData((void*)readThreadArgs);
     dataQue.push(pkt); 	
-  }
-  WriteSettings();
+      // pthread_create(&thread_cap_id, NULL, GetServerData, (void*)readThreadArgs);
+      // dNRunSeqCnt++;
+    iSettings.currentRun++; 
+    if(dNRunSeqCnt == 0){
       
+      fillThreadArgs = new fArgs;
+      fillThreadArgs->mQue = &dataQue;
+      fillThreadArgs->mExe = this;
+      fillThreadArgs->wReduced = dRootFileWriteReduced;
+      fillThreadArgs->dSamples = tmpDataSmpl;
+      fillThreadArgs->tree = DataTree;
+      fillThreadArgs->nRuns = dNRunsSeq;
+      // fillThreadArgs->rStartInd = RunStartIndex;
+      // fillThreadArgs->rStartTime = RunStartTime;
+      
+      // fillThreadArgs->FName = SamplesOutFileName.data();
+      // cout << "Writing to: " << SamplesOutFileName.data() << endl;
+      // readThreadArgs->NSamples = ReadNSamples;
+      // readThreadArgs->sock = dsocket;
+      // readThreadArgs->pkt = pkt;
+      pthread_create(&thread_plot_id, NULL, FillRootTreeThread, (void*)fillThreadArgs);
+   }
+      
+    // if(!dataQue.empty()){
+    //   FillRootTreeThread();
+      
+    //   pkt = (rawPkt*)dataQue.front();
+    //   free(pkt->data);
+    //   dataQue.pop();
+    //   // delete pkt;
+    //   pkt = NULL;      
+    // }
 
-  int qsz = dataQue.size();
-  while(!dataQue.empty()){
-    cout << "Filling tree with data packets: " << qsz - dataQue.size()+1 << endl;
 
-    FillRootTree();
-    pkt = (rawPkt*)dataQue.front();
-    free(pkt->data);
-    dataQue.pop();
-    // delete pkt;
-    pkt = NULL;
-    gSystem->ProcessEvents();
-     
+    
   }
-  cout << "Done filling tree." << endl;
-         
-  CloseRootFile();
+    // if(!pthread_join(thread_cap_id, NULL)){
+    //dataQue.push(pkt);
+    //cout << "this queue size = " << dataQue.size() << endl;
+    //RUN_START = false;
+    //RUN_ON = false;      
+    // }
+    
+    // gSystem->ProcessEvents();
 
-  cout << "Done!" << endl;
+  if(!pthread_join(thread_plot_id, NULL)){
+  
+    WriteSettings();
+    cout << "Done!" << endl;
+    return;
+  }
+  
+
+  // int qsz = dataQue.size();
+  // while(!dataQue.empty()){
+  //   cout << "Filling tree with data packets: " << qsz - dataQue.size()+1 << endl;
+
+  //   FillRootTree();
+  //   pkt = (rawPkt*)dataQue.front();
+  //   free(pkt->data);
+  //   dataQue.pop();
+  //   // delete pkt;
+  //   pkt = NULL;
+  //   gSystem->ProcessEvents();
+     
+  // }
+  // cout << "Done filling tree." << endl;
+         
+  //CloseRootFile();
+
 
 }
 
@@ -480,6 +530,279 @@ void *CMData::GetServerData(void *vargp)
   
 }
 
+void* CMData::FillRootTreeThread(void *vargp)
+{
+  sleep(1);
+  
+  pkt *data;
+  rawPkt *rPkt;
+
+  size_t bi = 0;
+  uint16_t num_words;  //2 bytes
+  uint32_t num_pkt;    //4 bytes
+  uint8_t padding;     //1 byte
+  uint8_t id;          //1 byte to unsigned int
+  uint64_t tStamp;     //8 bytes
+  
+  uint16_t nSamp;
+  uint16_t SampRead = 0;
+  int32_t ch0;           //4 bytes
+  int32_t ch1;           //4 bytes
+  int32_t ch0_data;      //4 bytes
+  int32_t ch1_data;      //4 bytes
+  uint32_t ch0_num;      //4 bytes
+  uint32_t ch1_num;      //4 bytes
+  uint32_t PreSc;
+  uint64_t sTime;          //absolute sample time stamp for each run
+  uint64_t sTimeP = 0;     //dumy
+  uint64_t iTime;          //run start time stamp  
+  uint64_t cTime = 0;      //current time stamp within run relative to run start time
+  uint64_t cTimeP = 0;
+  uint64_t tStampP = 0;
+
+  uint32_t gate1;
+  uint32_t gate2;
+
+  double ch0_psum = 0;
+  double ch0_nsum = 0;
+  double ch0_pcnt = 0;
+  double ch0_ncnt = 0;
+  double ch1_psum = 0;
+  double ch1_nsum = 0;
+  double ch1_pcnt = 0;
+  double ch1_ncnt = 0;
+
+  int g1cr, flc1;
+  int g2cr, flc2;
+  
+  double t1 = 0, t2 = 0;
+  int p = 0, k = 0;
+
+  vector<double_t> tStmpDiff;
+  vector<uint64_t> tStmpDiffTime;
+  vector<uint64_t> tStmpDiffRun;
+  
+  
+  tDataSamples *thisData;
+  tDataSamples *tmpData;
+  TTree *dataTree = NULL;
+  TFile* File = NULL;
+  Bool_t fOpen = false;
+  int nRuns = ((fArgs*)vargp)->nRuns;
+
+  queue<rawPkt*> *lQue = ((fArgs*)vargp)->mQue;
+
+  TString ROOTFileName;
+
+  int RunStartTime = 0;
+  int RunStartIndex = 0;
+  int newRun = 0;
+  int currentRun = 0;
+  
+  while(!lQue->empty()){
+    rPkt = lQue->front();
+    //nRuns--;
+    currentRun = rPkt->run;
+    ROOTFileName = Form("Int_Run_%03d.root",currentRun);
+    cout << "Setting ROOT file name: " << ROOTFileName << endl;
+    File = new TFile(ROOTFileName,"RECREATE");
+    dataTree = new TTree("DataTree","Integrating ADC Streaming Data");
+    tmpData = NULL;
+    dataTree->Branch("SampleStream","tDataSamples",&tmpData,64000,99);     
+    fOpen = true;
+    newRun = 1;
+    
+    thisData = new tDataSamples;
+    thisData->ch0_sum = 0;
+    thisData->ch1_sum = 0;
+    thisData->ch0_ssq = 0;
+    thisData->ch1_ssq = 0;
+    
+    SampRead = 0;
+    RunStartTime = cTime;
+    
+    cout << "Filling tree with data packets for run: " << rPkt->run << endl;
+    bi = 0;
+    while(bi < rPkt->length){
+      
+      memcpy(&num_words,&(rPkt->data)[bi+0],2);
+      memcpy(&num_pkt,&(rPkt->data)[bi+2],4);
+      memcpy(&padding,&(rPkt->data)[bi+6],1);
+      memcpy(&id,&(rPkt->data)[bi+7],1);
+      memcpy(&tStamp,&(rPkt->data)[bi+8],8);	
+      nSamp = num_words - 1;
+      SampRead += nSamp;
+      
+      for(int n = 0; n < nSamp; n++){
+	
+	memcpy(&ch0,&(rPkt->data)[bi+16+n*8],4);
+	memcpy(&ch1,&(rPkt->data)[bi+16+n*8+4],4);
+	
+	ch0_data = ch0 >> 14;
+	ch1_data = ch1 >> 14;
+	PreSc = ((ch0 >> 4) & 0x7F)+1;
+	ch0_num = ch0 & 0xF;
+	ch1_num = ch1 & 0xF;
+	
+	gate1 = (ch0 >> 12) & 0x1;
+	gate2 = (ch0 >> 13) & 0x1;
+	
+	if(ch0_num == ch1_num){
+	  sTime = (tStamp + ((n*2) * TS_CONVERSION * PreSc)) *  TS_TO_NS;
+	}
+	else{
+	  sTime = (tStamp + (n * TS_CONVERSION * PreSc)) * TS_TO_NS;
+	}
+	
+	if(!p){
+	  iTime = sTime;
+	  sTimeP = sTime;
+	  cTimeP = cTime;
+	  tStampP = tStamp;
+	  g1cr = gate1;
+	  flc1 = 0;
+	  g2cr = gate2;
+	  flc2 = 0;
+	}
+	
+	cTime = sTime-iTime + RunStartTime;
+	
+	if(!((fArgs*)vargp)->wReduced){
+	  thisData->ch0_data.push_back(ch0_data*ADC_CONVERSION);
+	  thisData->ch1_data.push_back(ch1_data*ADC_CONVERSION);
+	  thisData->gate1.push_back(gate1);
+	  thisData->gate2.push_back(gate2);
+	  thisData->tStmp.push_back(cTime*1e-6);
+	}
+	if(!newRun){
+	  if((sTime - sTimeP) > TS_TO_NS*TS_CONVERSION*PreSc){	    
+	    thisData->tStmpDiff.push_back((sTime - sTimeP)*1e-6);
+	    thisData->tStmpDiffTime.push_back(cTime*1e-6);
+	    
+	    tStmpDiff.push_back((sTime - sTimeP)*1e-6);
+	    tStmpDiffTime.push_back(cTime*1e-6);
+	    tStmpDiffRun.push_back(rPkt->run);
+	  }
+	}
+	
+	thisData->ch0_sum += ch0_data*ADC_CONVERSION;
+	thisData->ch1_sum += ch1_data*ADC_CONVERSION;
+	thisData->ch0_ssq += ch0_data*ADC_CONVERSION*ch0_data*ADC_CONVERSION;
+	thisData->ch1_ssq += ch1_data*ADC_CONVERSION*ch1_data*ADC_CONVERSION;
+	
+	if(gate1 != g1cr){g1cr = gate1; flc1++;}
+	
+	if(flc1 == 2){
+	  flc1 = 0;
+	  
+	  thisData->ch0_asym.push_back((ch0_psum/ch0_pcnt - ch0_nsum/ch0_ncnt)/(ch0_psum/ch0_pcnt + ch0_nsum/ch0_ncnt));
+	  thisData->ch1_asym.push_back((ch1_psum/ch1_pcnt - ch1_nsum/ch1_ncnt)/(ch1_psum/ch1_pcnt + ch1_nsum/ch1_ncnt));
+	  
+	  thisData->ch0_asym_num.push_back((ch0_psum/ch0_pcnt - ch0_nsum/ch0_ncnt));
+	  thisData->ch1_asym_num.push_back((ch1_psum/ch1_pcnt - ch1_nsum/ch1_ncnt));
+	  thisData->ch0_asym_den.push_back((ch0_psum/ch0_pcnt + ch0_nsum/ch0_ncnt));
+	  thisData->ch1_asym_den.push_back((ch1_psum/ch1_pcnt + ch1_nsum/ch1_ncnt));
+	  
+	  ch0_psum = 0;
+	  ch1_psum = 0;
+	  ch0_pcnt = 0;
+	  ch1_pcnt = 0;
+	  ch0_nsum = 0;
+	  ch1_nsum = 0;
+	  ch0_ncnt = 0;
+	  ch1_ncnt = 0;	  
+	}
+	
+	if(gate1) {
+	  ch0_psum += ch0_data*ADC_CONVERSION;
+	  ch1_psum += ch1_data*ADC_CONVERSION;
+	  ch0_pcnt++;
+	  ch1_pcnt++;
+	}
+	if(!gate1) {
+	  ch0_nsum += ch0_data*ADC_CONVERSION;
+	  ch1_nsum += ch1_data*ADC_CONVERSION;
+	  ch0_ncnt++;
+	  ch1_ncnt++;
+	}
+	
+	sTimeP = sTime;
+	cTimeP = cTime;
+	tStampP = tStamp;
+	p++;
+	newRun = 0;
+      }	
+      k++;
+      bi = bi + 16 + nSamp*8;
+    }
+    
+    RunStartIndex += p;
+    thisData->PreScF = PreSc;
+    thisData->ch0_num = ch0_num;
+    thisData->ch1_num = ch1_num;
+    thisData->ch0_mean = thisData->ch0_sum/thisData->ch0_data.size(); 
+    thisData->ch1_mean = thisData->ch1_sum/thisData->ch1_data.size(); 
+    thisData->ch0_sig = sqrt(thisData->ch0_ssq/thisData->ch0_data.size()-thisData->ch0_mean*thisData->ch0_mean); 
+    thisData->ch1_sig = sqrt(thisData->ch1_ssq/thisData->ch1_data.size()-thisData->ch1_mean*thisData->ch1_mean);
+    // if(IsDataFileOpen()){
+    // 	iSettings.currentData0 = ch0_num;
+    // 	iSettings.currentData1 = ch1_num;
+    // 	iSettings.PreScFactor = PreSc;
+    // 	iSettings.RunLength = ceil(p*PreSc/SAMPLES_PER_SECOND);
+    // 	iSettings.SamplingDelay = 0;
+    // }
+    thisData->RunLength = cTime;
+    thisData->NSamples = SampRead;//ReadNSamples;
+    tmpData = thisData;
+    //cout << "ch0 buffer = " << tmpData->ch0_data.size() << endl;
+    if(fOpen){
+      if(dataTree){
+	dataTree->Fill();	
+	cout << "Done filling this packet: " <<  dataTree->GetTotBytes() << endl;
+	dataTree->AutoSave("FlushBaskets");
+      }
+      if(File != NULL){
+	File->Write("",TObject::kOverwrite);
+	File->Close(kFalse);
+	delete File;
+	File = NULL;
+      }
+      fOpen = false;
+    }
+    if(thisData)
+      delete thisData;
+    free(rPkt->data);
+    rPkt = NULL;
+    lQue->pop();
+    gSystem->ProcessEvents();
+    //previousRun = currentRun;
+  }
+
+  ofstream *fMissedSmpls = new ofstream("MissedSamples.dat",std::ios_base::app);
+  if(fMissedSmpls){
+    if(fMissedSmpls->is_open()){
+
+      for(int s = 0 ; s < tStmpDiff.size(); s++){
+      
+	*fMissedSmpls << tStmpDiff[s] << " " << tStmpDiffTime[s] << " " << tStmpDiffRun[s] << '\n';
+
+      }
+      fMissedSmpls->close();
+    }
+  }
+
+
+  
+  // gSystem->ProcessEvents();
+  // if(rPkt){
+  //   free(rPkt->data);
+  //   rPkt = NULL;
+  //   lQue->pop();
+  //   cout << "Done filling this packet." << endl;
+  // }
+
+  return NULL;
+}
 
 void CMData::FillRootTree()
 {
@@ -530,7 +853,7 @@ void CMData::FillRootTree()
   tDataSamples *thisData;
 
   if(!dataQue.empty()){
-
+ 
     thisData = new tDataSamples;
     thisData->ch0_sum = 0;
     thisData->ch1_sum = 0;
@@ -540,6 +863,7 @@ void CMData::FillRootTree()
     
     rPkt = dataQue.front();
     if(rPkt){     
+      cout << "Filling tree with data packets for run: " << rPkt->run << endl;
       while(bi < rPkt->length){
 	
 	memcpy(&num_words,&(rPkt->data)[bi+0],2);
@@ -590,6 +914,11 @@ void CMData::FillRootTree()
 	    thisData->gate2.push_back(gate2);
 	    thisData->tStmp.push_back(cTime*1e-6);
 	  }
+	  if((sTime - sTimeP) > TS_TO_NS*TS_CONVERSION*PreSc){	    
+	    thisData->tStmpDiff.push_back((sTime - sTimeP)*1e-6);
+	    thisData->tStmpDiffTime.push_back(cTime*1e-6);
+	  }
+
 	  thisData->ch0_sum += ch0_data*ADC_CONVERSION;
 	  thisData->ch1_sum += ch1_data*ADC_CONVERSION;
 	  thisData->ch0_ssq += ch0_data*ADC_CONVERSION*ch0_data*ADC_CONVERSION;
@@ -665,6 +994,8 @@ void CMData::FillRootTree()
 	if(DataTree)
 	  DataTree->Fill();	
       }
+      cout << "Done filling packet(s)." << endl;
+
       gSystem->ProcessEvents();
     }
     DataTree->AutoSave("FlushBaskets");    

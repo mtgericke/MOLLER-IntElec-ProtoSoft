@@ -40,6 +40,8 @@
 
 ## Running CMMonitor
 
+![ROOT Data Tree Output](Docs/CMMonitor.png)
+
 * './CMMonitor' (without commandline arguments - connection can be set via menu)
 * Follow these steps:
 * Set the ip address from the menu (only has to be done ones when the address changes)
@@ -73,7 +75,8 @@
 
 * './CMData -l <..> -n <..> -s <..> -c1 <..> -c2 <..> -r <..> -red'
 * This is simple command-line program that collects a (or squence of) run according to the parameters set with the commandline switches. The program produces a binary file output of the data packets that can be read in later with the CMMonitor program or some other custom program, as well as a ROOT file containing a TTree data structure with all of the relevant run information.
-*It is not required to specify any commandline arguments. If non are given, the program reads the parameters from a files called "CMDataSettings.txt". If there is no such file and no flags are set, the program selects a standard set of initial settings. At the end of the run(s) the program writes the setting to the "CMDataSettings.txt" file, including the ones that were specified on the command line. The latter superseed and replace the paraemters listed in the settings file. The settings file therefore always starts off rom the last used set of parameters.
+*It is not required to specify any commandline arguments. If non are given, the program reads the parameters from a files called "CMDataSettings.txt". If there is no such file and no flags are set, the program selects a standard set of initial settings. At the end of the run(s) the program writes the setting to the "CMDataSettings.txt" file, including the ones that were specified on the command line. The latter superseed and replace the paraemters listed in the settings file. The settings file therefore always starts off from the last used set of parameters.
+* The program writes to a separte file the isntances where the time gap between samples is larger than what would be expected based on the maximum sampling rate of the ADC and the prescale setting (essentially writing out any instances of missed samples) in the file "MissedSamples.dat" (format: <sample delta>  <occurence time of gap> <run number>).
 
 ### Command-line arguments
 

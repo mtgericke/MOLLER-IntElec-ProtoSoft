@@ -56,6 +56,7 @@ struct rawPkt{
   uint8_t *data;
   size_t length;
   uint32_t convClk;
+  Int_t run;
 
 };
 
@@ -82,6 +83,8 @@ public:
   virtual ~tDataSamples(){ };
   
   vector<double> tStmp;
+  vector<double> tStmpDiff;
+  vector<double> tStmpDiffTime;
   vector<double> ch0_data;
   vector<double> ch1_data;
   vector<uint32_t> gate1;
@@ -112,11 +115,25 @@ public:
 
 
 struct rArgs{
-
   string FName;
   int NSamples;
   void *sock;
   rawPkt* pkt;
+};
+
+class CMData;
+struct fArgs{
+  //string FName;
+  //int NSamples;
+  //void *sock;
+  queue<rawPkt*> *mQue;
+  CMData *mExe;
+  Bool_t wReduced;
+  tDataSamples *dSamples;
+  TTree *tree;
+  int nRuns;
+  // Int_t  *rStartInd;
+  // uint64_t  rStartTime;
 };
 
 struct Settings{
@@ -175,6 +192,7 @@ private:
   string                  DataFileName;
 
   rArgs                  *readThreadArgs;  
+  fArgs                  *fillThreadArgs;  
 
   Bool_t                  RUN_START;
   Bool_t                  RUN_STOP;
@@ -199,6 +217,7 @@ private:
   // void                    GetServerData(queue<pkt*>*, pkt*, Bool_t*);
   static void            *GetServerData(void *vargp);
   void                    DisconnectBoard();
+  static void            *FillRootTreeThread(void *vargp);
   void                    FillRootTree();
   void                    StartDataCollection();
   void                    WriteSettings();
@@ -211,6 +230,7 @@ private:
   void                    SetDataFileName(const char *name){DataFileName = name;};
   void                    CloseDataFile();
   Int_t                   SaveDataFile(ERFileStatus status, const char* file);
+  TTree                  *GetDataTree() {return DataTree;};
   
 public:
   CMData(int *argc, char **argv);
