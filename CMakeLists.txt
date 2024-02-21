@@ -10,8 +10,11 @@ LIST( APPEND CMAKE_MODULE_PATH
 
 set(CMAKE_CXX_FLAGS "-g -Wall -pg -Wno-shadow -Wno-pedantic -Wno-unused-parameter -Wno-overloaded-virtual -Wno-sign-compare -Wno-unused-variable -Wno-unused-but-set-variable")
 
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(PC_ZeroMQ QUIET zmq)
 find_package(ROOT REQUIRED)
 
+set(CMAKE_CXX_FLAGS "-DZMQ_BUILD_DRAFT_API=1 ${CMAKE_CXX_FLAGS}")
 set(RDATA_LIBRARIES "${PROJECT_SOURCE_DIR}/lib/build/libRData.a")
 set(RDATA_INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/lib/include")
 set(ZMQ_LIBRARY "/usr/local/lib/libzmq.a")
