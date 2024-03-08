@@ -32,7 +32,7 @@
 #define SAMPLES_PER_SECOND    14705883
 #define MAX_SAMPLES (SAMPLES_PER_SECOND*5)
 #define MAX_ALLOC   ((MAX_SAMPLES+MAX_SAMPLES)*8)
-#define ADC_CONVERSION 0.00003125         // 2^-17*4.096  V/bin
+#define ADC_CONVERSION 0.000015625         // 2^-17*2.048  V/bin
 #define TS_TO_NS  4                       // nanoseconds per timestamp tick
 #define TS_CONVERSION  17                 // Number of cycles to convert (68ns  / 4ns) at 250Mhz ADC clock
 

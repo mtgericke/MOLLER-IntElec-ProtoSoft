@@ -115,9 +115,10 @@ CMData::CMData(int *argc, char **argv)
 	argp = argv[n+1];
 	if(argp.IsFloat()){
 	  tmpi =  atoi(argp.Data());
-	  if(tmpi > 0 && tmpi < 17)
+	  if(tmpi > 0 && tmpi < 17){
 	    iSettings.currentData1 = tmpi;
 	    
+	  }
 	  n += 2;
 	}
       }
@@ -312,7 +313,7 @@ void CMData::StartDataCollection()
   uint32_t prsc = iSettings.PreScFactor-1;
   uint32_t ch0 = iSettings.currentData0-1; 
   uint32_t ch1 = iSettings.currentData1-1; 
-  uint32_t cntrmsg = 0x80000000 | (prsc << 24) | (ch0 << 16) | (ch1 << 20) | (int(ADC_PACKET_SIZE));
+  uint32_t cntrmsg = 0x80000000 | (prsc << 24) | (ch1 << 16) | (ch0 << 20) | (int(ADC_PACKET_SIZE));
   uint32_t reg1 = 0x44; //ADC register to set the control parameters in message above
   uint32_t ratemsg = 0x80000000 | (iSettings.SamplingDelay << 16);
   uint32_t reg2 = 0x48; //ADC register to set the sample rate
@@ -913,12 +914,12 @@ void CMData::FillRootTree()
 	    thisData->gate1.push_back(gate1);
 	    thisData->gate2.push_back(gate2);
 	    thisData->tStmp.push_back(cTime*1e-6);
+	    if((sTime - sTimeP) > TS_TO_NS*TS_CONVERSION*PreSc){	    
+	      thisData->tStmpDiff.push_back((sTime - sTimeP)*1e-6);
+	      thisData->tStmpDiffTime.push_back(cTime*1e-6);
+	    }
 	  }
-	  if((sTime - sTimeP) > TS_TO_NS*TS_CONVERSION*PreSc){	    
-	    thisData->tStmpDiff.push_back((sTime - sTimeP)*1e-6);
-	    thisData->tStmpDiffTime.push_back(cTime*1e-6);
-	  }
-
+	  
 	  thisData->ch0_sum += ch0_data*ADC_CONVERSION;
 	  thisData->ch1_sum += ch1_data*ADC_CONVERSION;
 	  thisData->ch0_ssq += ch0_data*ADC_CONVERSION*ch0_data*ADC_CONVERSION;
@@ -974,7 +975,7 @@ void CMData::FillRootTree()
       thisData->PreScF = PreSc;
       thisData->ch0_num = ch0_num;
       thisData->ch1_num = ch1_num;
-      thisData->ch0_num = ch0_num;
+      // thisData->ch0_num = ch0_num;
       thisData->ch0_mean = thisData->ch0_sum/thisData->ch0_data.size(); 
       thisData->ch1_mean = thisData->ch1_sum/thisData->ch1_data.size(); 
       thisData->ch0_sig = sqrt(thisData->ch0_ssq/thisData->ch0_data.size()-thisData->ch0_mean*thisData->ch0_mean); 
