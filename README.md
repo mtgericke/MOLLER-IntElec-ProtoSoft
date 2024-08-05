@@ -1,8 +1,8 @@
 # Software Front-end for testing the MOLLER/P2 Integrating Electronics Prototypes 
 
-#Note: This code was written for the revision 0 ADC board. It is currently not maintained.
+# $\texcolor{red}{Note: This code was written for the revision 0 ADC board. It is currently not maintained.}$
 
-## This was successfully compiled with
+# This was successfully compiled with
 
 * Ubuntu 20.04.2 LTS
 * 5.4.0-70-generic
