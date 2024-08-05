@@ -1,6 +1,6 @@
 # Software Front-end for testing the MOLLER/P2 Integrating Electronics Prototypes 
 
-# $\texcolor{red}{Note: This code was written for the revision 0 ADC board. It is currently not maintained.}$
+# $\textcolor{red}{Note: This code was written for the revision 0 ADC board. It is currently not maintained.}$
 
 # This was successfully compiled with
 
