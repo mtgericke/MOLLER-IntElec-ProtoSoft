@@ -456,7 +456,6 @@ void CMData::StartDataCollection()
 
   readThreadArgs = new rArgs;
   readThreadArgs->NSamples = ReadNSamples;
-  readThreadArgs->sock = dsocket;
   readThreadArgs->socktype = sType;
   if(integrate)
     memcpy(readThreadArgs->dType,"AVG",3);
@@ -499,7 +498,8 @@ void CMData::StartDataCollection()
     readThreadArgs->FName = SamplesOutFileName.data();
     cout << "Writing to: " << SamplesOutFileName.data() << endl;
     readThreadArgs->rDat = rDat;
-              
+    readThreadArgs->sock = dsocket;
+             
     GetServerData((void*)readThreadArgs);
     runQue.push(rDat);
     //dataQue.push(pkt);
