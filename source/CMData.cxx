@@ -1,7 +1,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 //
 // name: CMData.cxx
-// date: 11-13-2023
+// date: 06/2025
 // auth: Michael Gericke 
 //
 ///////////////////////////////////////////////////////////////////////////////
@@ -30,7 +30,16 @@ CMData::CMData(int *argc, char **argv)
       *SettingsFile >> label >> iSettings.currentData1;
       *SettingsFile >> label >> iSettings.PreScFactor;
       *SettingsFile >> label >> iSettings.RunLength;
+      *SettingsFile >> label >> iSettings.ReversalFreq;
       *SettingsFile >> label >> iSettings.SamplingDelay;
+
+      *SettingsFile >> label >> iSettings.IntMode;   //toggles integration and streaming mode : 1 = integration on
+      *SettingsFile >> label >> iSettings.IntModeSingle;   //enables single integration region  (e.g. the enitre helicity window)
+      *SettingsFile >> label >> iSettings.streamAll;   //enable streaming all 16 channels, but at much reduced sample factor
+      *SettingsFile >> label >> iSettings.pockSettle;  //sets the pockels cell settle time delay in  8 ns intervals
+      *SettingsFile >> label >> iSettings.totalSamplingDelay;   //sum of the pockles cell and additional adc/sampling delay in 8 ns intervals
+      *SettingsFile >> label >> iSettings.numBlocks;   //number of blocks in helcity window
+      *SettingsFile >> label >> iSettings.blockSize;   // length of each block currently in terms of 8 ns clock cycles
 
       SettingsFile->close();
     }
@@ -43,6 +52,15 @@ CMData::CMData(int *argc, char **argv)
       iSettings.PreScFactor = 1;
       iSettings.SamplingDelay = 0;
       iSettings.RunLength = 1;
+      iSettings.ReversalFreq = 2000; //Hz
+
+      iSettings.IntMode = 0;
+      iSettings.IntModeSingle = 1;
+      iSettings.streamAll = 0; 
+      iSettings.pockSettle = 1250; //8 ns * 1250 cycles = 10 us 
+      iSettings.totalSamplingDelay = 1250;   
+      iSettings.numBlocks = 1; 
+      iSettings.blockSize = 61250; //8 ns * 61250 cycles = 490 us       
 
       delete SettingsFile;
     }
@@ -55,6 +73,15 @@ CMData::CMData(int *argc, char **argv)
     iSettings.PreScFactor = 1;
     iSettings.SamplingDelay = 0;
     iSettings.RunLength = 1;
+    iSettings.ReversalFreq = 2000; //Hz
+    
+    iSettings.IntMode = 0;
+    iSettings.IntModeSingle = 1;
+    iSettings.streamAll = 0; 
+    iSettings.pockSettle = 1250; //8 ns * 1250 cycles = 10 us 
+    iSettings.totalSamplingDelay = 1250;   
+    iSettings.numBlocks = 1; 
+    iSettings.blockSize = 61250; //8 ns * 61250 cycles = 490 us       
   }
 
   dNRunsSeq = 1;
@@ -156,7 +183,6 @@ CMData::CMData(int *argc, char **argv)
   data_socket = NULL;
   context = NULL;
 
-
   std::set_new_handler(0);
 
   StartDataCollection();
@@ -167,7 +193,14 @@ void* CMData::GetSocket(SockType type)
 {
   string tmp = iSettings.IP.data();
 
-  if(type == DATA){
+  if(type == STREAM){
+
+    //make sure socket is closed before opening them again for a new message/data transfer.
+    if(data_socket) {
+      zmq_close(data_socket);
+      data_socket = NULL;
+    }
+
     server = "tcp://"+ tmp + ":5556";
     cout << "Connecting to server on port 5556:  " << server.data() << endl;
 
@@ -183,7 +216,37 @@ void* CMData::GetSocket(SockType type)
     else   
       return data_socket;
   }
+  if(type == INTEG){
+
+    //make sure socket is closed before opening them again for a new message/data transfer.
+    if(data_socket) {
+      zmq_close(data_socket);
+      data_socket = NULL;
+    }
+
+    server = "tcp://"+ tmp + ":5556";
+    cout << "Connecting to server on port 5556:  " << server.data() << endl;
+
+    context = zmq_ctx_new();
+    zmq_ctx_set(context, ZMQ_IO_THREADS, 4);
+    data_socket = zmq_socket(context,ZMQ_SUB);
+    zmq_setsockopt(data_socket, ZMQ_SUBSCRIBE, "AVG",3);
+      
+    if(zmq_connect (data_socket, server.data()) != 0) {
+      cout << "Failed to Bind ZMQ to port 5556 - quitting this process\n" << endl;;
+      return 0;
+    }
+    else   
+      return data_socket;
+  }
   else if(type == CNTRL){
+    
+    //make sure socket is closed before opening them again for a new message/data transfer.
+    if(cntr_socket) {
+      zmq_close(cntr_socket);
+      cntr_socket = NULL;
+    }
+
     errno = 0;
     server = "tcp://"+ tmp + ":5555";
     cout << "Connecting to server on port 5555:  " << server.data() << endl;
@@ -308,88 +371,144 @@ Bool_t CMData::ADCMessage(ActType Act, void* socket, uint32_t addr, uint32_t dat
   return 0;
 }
 
+long CMData::GetPacketFrameSize()
+{
+  uint32_t prsc = iSettings.PreScFactor;
+  long bSize = 0;
+
+  if(!iSettings.IntMode){
+
+    if(!iSettings.streamAll){
+
+      return 8 + 8 + 8; // 8 byte header + 8 byte timestamp
+
+    }
+
+    return 0;
+    
+  }
+
+  return 0;
+}
+
 void CMData::StartDataCollection()
 {
   uint32_t prsc = iSettings.PreScFactor-1;
   uint32_t ch0 = iSettings.currentData0-1; 
-  uint32_t ch1 = iSettings.currentData1-1; 
+  uint32_t ch1 = iSettings.currentData1-1;
+  uint32_t integrate = iSettings.IntMode; //bit that toggles integration and streaming mode : 1 = integration on
+  uint32_t singleWin = iSettings.IntModeSingle; //enables single integration region  (e.g. the enitre helicity window)
+  uint32_t streamAllCh = iSettings.streamAll; //enable streaming all 16 channels, but at much reduced sample factor
+  uint32_t pockSettle = iSettings.pockSettle; //sets the pockels cell settle time delay in  8 ns intervals
+  uint32_t totalDelay = iSettings.totalSamplingDelay;   //sum of the pockles cell and additional adc/sampling delay in 8 ns intervals
+  uint32_t numBlocks = iSettings.numBlocks;   //number of blocks in helcity window
+  uint32_t blockSize = iSettings.blockSize;   // length of each block currently in terms of 8 ns clock cycles
+
+  uint32_t fixedDelay = 0;
+  
   uint32_t cntrmsg = 0x80000000 | (prsc << 24) | (ch1 << 16) | (ch0 << 20) | (int(ADC_PACKET_SIZE));
-  uint32_t reg1 = 0x44; //ADC register to set the control parameters in message above
-  uint32_t ratemsg = 0x80000000 | (iSettings.SamplingDelay << 16);
-  uint32_t reg2 = 0x48; //ADC register to set the sample rate
+  uint32_t reg1 = 0x44; //FPGA register to set the control parameters
+  
+  uint32_t ratemsg = 0x80000000 | (iSettings.SamplingDelay << 16); 
+  uint32_t reg2 = 0x48; //FPGA register to set the sample delay
+  //So there is already a 16*8 ns delay here before the ADC is sampled? Why? Timestamp conversion ... see below ...
+  
+  uint32_t avgmsg = 0x80000000 | (totalDelay << 20) | (pockSettle << 8) | (streamAllCh << 3) | (fixedDelay << 2) | (singleWin << 1) | integrate;
+  uint32_t reg3 = 0x104; //FPGA register  to set the control parameters
+
+  uint32_t avgmsg2 = 0x80000000 | (blockSize << 15) | numBlocks;
+  uint32_t reg4 = 0x108; //FPGA register  to set the control parameters
+  
+  uint32_t  ReadNSamples;
   uint32_t retmsg;
   uint32_t convert_clocks;
   void* csocket;
   void* dsocket;
-  rawPkt *pkt = NULL;
-
+  
+  //rawPkt *pkt = NULL;
+  runData *rDat = NULL;
+  
   int flag = 0;
   //int dNRunSeqCnt = 0;
-
   
-  ReadNSamples = iSettings.RunLength *SAMPLES_PER_SECOND/iSettings.PreScFactor;
-  //dNRunSeqCnt = 0;
-  for(int dNRunSeqCnt = 0; dNRunSeqCnt < dNRunsSeq; dNRunSeqCnt++ ){
-      
-    // if(!IsRootFileOpen()){
-      
-    //   ROOTFileName = Form("Int_Run_%03d-%03d.root",iSettings.currentRun,iSettings.currentRun+dNRunsSeq-1);	
-    //   OpenRootFile(ROOTFileName.Data());
-    // }
-    
-    SamplesOutFileName = Form("Int_Run_%03d.dat",iSettings.currentRun);
-    
-    //GetSocket(...) sets the global pointers cntr_socket or data_socket
-    //make sure they are close before opening them again for a new message/data transfer.
-    if(data_socket) {
-      zmq_close(data_socket);
-      data_socket = NULL;
-    }
-    if(cntr_socket) {
-      zmq_close(cntr_socket);
-      cntr_socket = NULL;
-    }
-    
-    //Set the board up with the correct channels, prescale, and packet size 
-    csocket = GetSocket(CNTRL);
-    ADCMessage(WRITE,csocket,reg1,cntrmsg,&retmsg);
-    ADCMessage(WRITE,csocket,reg2,ratemsg,&retmsg);
-    
-    //Read back the convert time delay used in the conversion of the time stamp
-    ADCMessage(READ,csocket,reg2,0,&retmsg);
-    convert_clocks = (retmsg >> 16) & 0xFF;
-    if(convert_clocks < MIN_CONVERT_CLOCKS)
-      convert_clocks = MIN_CONVERT_CLOCKS;
-    
-    dsocket = GetSocket(DATA);      
-    
-    pkt = new rawPkt;
-    if(!pkt){
-      return;
-    }
-    pkt->convClk = convert_clocks;
-    pkt->run = iSettings.currentRun;
-    pkt->data = (uint8_t*)malloc(MAX_ALLOC);
-    if(!pkt->data) {
-      return;
-    }
+  //Set the board up with the correct channels, prescale, and packet size 
+  csocket = GetSocket(CNTRL);
+  ADCMessage(WRITE,csocket,reg1,cntrmsg,&retmsg);
+  
+  ADCMessage(WRITE,csocket,reg2,ratemsg,&retmsg);    
+  //Read back the convert time delay used in the conversion of the time stamp
+  ADCMessage(READ,csocket,reg2,0,&retmsg);
+  convert_clocks = (retmsg >> 16) & 0xFF;
+  if(convert_clocks < MIN_CONVERT_CLOCKS)
+    convert_clocks = MIN_CONVERT_CLOCKS;
+  
+  ADCMessage(WRITE,csocket,reg3,avgmsg,&retmsg);
+  ADCMessage(WRITE,csocket,reg4,avgmsg2,&retmsg);
 
-    readThreadArgs = new rArgs;
+  SockType sType = (integrate) ? INTEG : STREAM;
+  
+  if(!integrate)
+    ReadNSamples = (uint32_t)(iSettings.RunLength *SAMPLES_PER_SECOND/iSettings.PreScFactor);
+  else
+    ReadNSamples = (uint32_t)(iSettings.RunLength * iSettings.ReversalFreq);
+  
+  //dNRunSeqCnt = 0;
+
+  readThreadArgs = new rArgs;
+  readThreadArgs->NSamples = ReadNSamples;
+  readThreadArgs->sock = dsocket;
+  readThreadArgs->socktype = sType;
+  if(integrate)
+    memcpy(readThreadArgs->dType,"AVG",3);
+  else
+    memcpy(readThreadArgs->dType,"ADC",3);
+  
+  //  readThreadArgs->dType = (integrate) ? memcpy("AVG" : "ADC";
+  
+  for(int dNRunSeqCnt = 0; dNRunSeqCnt < dNRunsSeq; dNRunSeqCnt++ ){
+          
+    SamplesOutFileName = Form("Int_Run_%03d.dat",iSettings.currentRun);
+    dsocket = GetSocket(sType);
+
+   // if(integrate)
+   //    dsocket = GetSocket(INTEG);
+   //  else
+   //    dsocket = GetSocket(STREAM);
+ 
+    
+    // pkt = new rawPkt;
+    // if(!pkt){
+    //   return;
+    // }
+    // pkt->convClk = convert_clocks;
+    // pkt->run = iSettings.currentRun;
+    // pkt->data = (uint8_t*)malloc(MAX_ALLOC);
+    // if(!pkt->data) {
+    //   return;
+    // }
+    rDat = new runData;
+    if(!rDat){
+      return;
+    }
+    rDat->convClk = convert_clocks;
+    rDat->run = iSettings.currentRun;
+    rDat->NSamples = ReadNSamples;
+    rDat->FName = SamplesOutFileName;
+
+    
     readThreadArgs->FName = SamplesOutFileName.data();
     cout << "Writing to: " << SamplesOutFileName.data() << endl;
-    readThreadArgs->NSamples = ReadNSamples;
-    readThreadArgs->sock = dsocket;
-    readThreadArgs->pkt = pkt;
-          
+    readThreadArgs->rDat = rDat;
+              
     GetServerData((void*)readThreadArgs);
-    dataQue.push(pkt); 	
-      // pthread_create(&thread_cap_id, NULL, GetServerData, (void*)readThreadArgs);
-      // dNRunSeqCnt++;
+    runQue.push(rDat);
+    //dataQue.push(pkt);
     iSettings.currentRun++; 
     if(dNRunSeqCnt == 0){
       
       fillThreadArgs = new fArgs;
-      fillThreadArgs->mQue = &dataQue;
+      // fillThreadArgs->mQue = &dataQue;
+      fillThreadArgs->rQue = &runQue;
       fillThreadArgs->mExe = this;
       fillThreadArgs->wReduced = dRootFileWriteReduced;
       fillThreadArgs->dSamples = tmpDataSmpl;
@@ -456,7 +575,7 @@ void CMData::StartDataCollection()
 
 }
 
-void *CMData::GetServerData(void *vargp)
+void  *CMData::GetServerData(void *vargp)
 {
   FILE *SamplesOutFile;
   uint8_t *data;
@@ -467,6 +586,7 @@ void *CMData::GetServerData(void *vargp)
   zmq_msg_t header;
   zmq_msg_t samples;
   int ne;
+  rawPkt *pkt = NULL;
 
   void *poller = zmq_poller_new();
   zmq_poller_event_t evnts;
@@ -484,7 +604,7 @@ void *CMData::GetServerData(void *vargp)
   pkts_rx = 0;
 
   cout << std::dec << "NSample = " << ((rArgs*)vargp)->NSamples << endl;
-  
+
   while(samples_written < 2.0*((rArgs*)vargp)->NSamples) {
     //The factor of 2 needs to be there, because I want to specify the number of samples per channel.
     //However the way the ZMQ code is written below, it reads both channels at the same time. Which means
@@ -499,7 +619,8 @@ void *CMData::GetServerData(void *vargp)
       data = (uint8_t*)zmq_msg_data(&header);
       len = zmq_msg_size(&header);
       
-      if(strncmp("ADC", (char*)data, 3) == 0) {
+      // if(strncmp("ADC", (char*)data, 3) == 0) {
+      if(strncmp(((rArgs*)vargp)->dType, (char*)data, 3) == 0) {
 	
 	zmq_msg_init (&samples);
 	zmq_msg_recv (&samples, ((rArgs*)vargp)->sock, 0);
@@ -507,10 +628,15 @@ void *CMData::GetServerData(void *vargp)
 	pkts_rx++;
 	data = (uint8_t*)zmq_msg_data(&samples);
 	len = zmq_msg_size(&samples);
+	pkt->data = (uint8_t*)malloc(len);
+	if(!pkt->data) {
+	  return NULL;
+	}
 	
-	memcpy(&(((rArgs*)vargp)->pkt->data)[data_written], data, len);
+	memcpy(&((pkt->data)[data_written]), data, len);
+	((rArgs*)vargp)->rDat->dQue.push(pkt);
 	
-	data_written += len;
+	  data_written += len;
 	samples_written += (len - 16) / 4;
       
 	zmq_msg_close(&samples);
@@ -591,7 +717,9 @@ void* CMData::FillRootTreeThread(void *vargp)
   Bool_t fOpen = false;
   int nRuns = ((fArgs*)vargp)->nRuns;
 
-  queue<rawPkt*> *lQue = ((fArgs*)vargp)->mQue;
+  rawPkt *pkt;
+  runData *rDat;
+  queue<runData*> *rQue= ((fArgs*)vargp)->rQue;
 
   TString ROOTFileName;
 
@@ -600,10 +728,10 @@ void* CMData::FillRootTreeThread(void *vargp)
   int newRun = 0;
   int currentRun = 0;
   
-  while(!lQue->empty()){
-    rPkt = lQue->front();
+  while(!rQue->empty()){
+    rDat = rQue->front();
     //nRuns--;
-    currentRun = rPkt->run;
+    currentRun = rDat->run;
     ROOTFileName = Form("Int_Run_%03d.root",currentRun);
     cout << "Setting ROOT file name: " << ROOTFileName << endl;
     File = new TFile(ROOTFileName,"RECREATE");
@@ -622,119 +750,132 @@ void* CMData::FillRootTreeThread(void *vargp)
     SampRead = 0;
     RunStartTime = cTime;
     
-    cout << "Filling tree with data packets for run: " << rPkt->run << endl;
-    bi = 0;
-    while(bi < rPkt->length){
-      
-      memcpy(&num_words,&(rPkt->data)[bi+0],2);
-      memcpy(&num_pkt,&(rPkt->data)[bi+2],4);
-      memcpy(&padding,&(rPkt->data)[bi+6],1);
-      memcpy(&id,&(rPkt->data)[bi+7],1);
-      memcpy(&tStamp,&(rPkt->data)[bi+8],8);	
-      nSamp = num_words - 1;
-      SampRead += nSamp;
-      
-      for(int n = 0; n < nSamp; n++){
-	
-	memcpy(&ch0,&(rPkt->data)[bi+16+n*8],4);
-	memcpy(&ch1,&(rPkt->data)[bi+16+n*8+4],4);
-	
-	ch0_data = ch0 >> 14;
-	ch1_data = ch1 >> 14;
-	PreSc = ((ch0 >> 4) & 0x7F)+1;
-	ch0_num = ch0 & 0xF;
-	ch1_num = ch1 & 0xF;
-	
-	gate1 = (ch0 >> 12) & 0x1;
-	gate2 = (ch0 >> 13) & 0x1;
-	
-	if(ch0_num == ch1_num){
-	  sTime = (tStamp + ((n*2) * TS_CONVERSION * PreSc)) *  TS_TO_NS;
-	}
-	else{
-	  sTime = (tStamp + (n * TS_CONVERSION * PreSc)) * TS_TO_NS;
-	}
-	
-	if(!p){
-	  iTime = sTime;
-	  sTimeP = sTime;
-	  cTimeP = cTime;
-	  tStampP = tStamp;
-	  g1cr = gate1;
-	  flc1 = 0;
-	  g2cr = gate2;
-	  flc2 = 0;
-	}
-	
-	cTime = sTime-iTime + RunStartTime;
-	
-	if(!((fArgs*)vargp)->wReduced){
-	  thisData->ch0_data.push_back(ch0_data*ADC_CONVERSION);
-	  thisData->ch1_data.push_back(ch1_data*ADC_CONVERSION);
-	  thisData->gate1.push_back(gate1);
-	  thisData->gate2.push_back(gate2);
-	  thisData->tStmp.push_back(cTime*1e-6);
-	}
-	if(!newRun){
-	  if((sTime - sTimeP) > TS_TO_NS*TS_CONVERSION*PreSc){	    
-	    thisData->tStmpDiff.push_back((sTime - sTimeP)*1e-6);
-	    thisData->tStmpDiffTime.push_back(cTime*1e-6);
+    cout << "Filling tree with data packets for run: " << currentRun << endl;
+
+    while(!rDat->dQue.empty()){
+
+      pkt = rDat->dQue.front();
+
+      if(pkt){
+    
+	bi = 0;
+	while(bi < pkt->length){
+	  
+	  memcpy(&num_words,&(pkt->data)[bi+0],2);
+	  memcpy(&num_pkt,&(pkt->data)[bi+2],4);
+	  memcpy(&padding,&(pkt->data)[bi+6],1);
+	  memcpy(&id,&(pkt->data)[bi+7],1);
+	  memcpy(&tStamp,&(pkt->data)[bi+8],8);	
+	  nSamp = num_words - 1;
+	  SampRead += nSamp;
+	  
+	  for(int n = 0; n < nSamp; n++){
 	    
-	    tStmpDiff.push_back((sTime - sTimeP)*1e-6);
-	    tStmpDiffTime.push_back(cTime*1e-6);
-	    tStmpDiffRun.push_back(rPkt->run);
-	  }
+	    memcpy(&ch0,&(pkt->data)[bi+16+n*8],4);
+	    memcpy(&ch1,&(pkt->data)[bi+16+n*8+4],4);
+	    
+	    ch0_data = ch0 >> 14;
+	    ch1_data = ch1 >> 14;
+	    PreSc = ((ch0 >> 4) & 0x7F)+1;
+	    ch0_num = ch0 & 0xF;
+	    ch1_num = ch1 & 0xF;
+	    
+	    gate1 = (ch0 >> 12) & 0x1;
+	    gate2 = (ch0 >> 13) & 0x1;
+	    
+	    if(ch0_num == ch1_num){
+	      sTime = (tStamp + ((n*2) * TS_CONVERSION * PreSc)) *  TS_TO_NS;
+	    }
+	    else{
+	      sTime = (tStamp + (n * TS_CONVERSION * PreSc)) * TS_TO_NS;
+	    }
+	    
+	    if(!p){
+	      iTime = sTime;
+	      sTimeP = sTime;
+	      cTimeP = cTime;
+	      tStampP = tStamp;
+	      g1cr = gate1;
+	      flc1 = 0;
+	      g2cr = gate2;
+	      flc2 = 0;
+	    }
+	    
+	    cTime = sTime-iTime + RunStartTime;
+	    
+	    if(!((fArgs*)vargp)->wReduced){
+	      thisData->ch0_data.push_back(ch0_data*ADC_CONVERSION);
+	      thisData->ch1_data.push_back(ch1_data*ADC_CONVERSION);
+	      thisData->gate1.push_back(gate1);
+	      thisData->gate2.push_back(gate2);
+	      thisData->tStmp.push_back(cTime*1e-6);
+	    }
+	    if(!newRun){
+	      if((sTime - sTimeP) > TS_TO_NS*TS_CONVERSION*PreSc){	    
+		thisData->tStmpDiff.push_back((sTime - sTimeP)*1e-6);
+		thisData->tStmpDiffTime.push_back(cTime*1e-6);
+		
+		tStmpDiff.push_back((sTime - sTimeP)*1e-6);
+		tStmpDiffTime.push_back(cTime*1e-6);
+		tStmpDiffRun.push_back(pkt->run);
+	      }
+	    }
+	    
+	    thisData->ch0_sum += ch0_data*ADC_CONVERSION;
+	    thisData->ch1_sum += ch1_data*ADC_CONVERSION;
+	    thisData->ch0_ssq += ch0_data*ADC_CONVERSION*ch0_data*ADC_CONVERSION;
+	    thisData->ch1_ssq += ch1_data*ADC_CONVERSION*ch1_data*ADC_CONVERSION;
+	    
+	    if(gate1 != g1cr){g1cr = gate1; flc1++;}
+	    
+	    if(flc1 == 2){
+	      flc1 = 0;
+	      
+	      thisData->ch0_asym.push_back((ch0_psum/ch0_pcnt - ch0_nsum/ch0_ncnt)/(ch0_psum/ch0_pcnt + ch0_nsum/ch0_ncnt));
+	      thisData->ch1_asym.push_back((ch1_psum/ch1_pcnt - ch1_nsum/ch1_ncnt)/(ch1_psum/ch1_pcnt + ch1_nsum/ch1_ncnt));
+	      
+	      thisData->ch0_asym_num.push_back((ch0_psum/ch0_pcnt - ch0_nsum/ch0_ncnt));
+	      thisData->ch1_asym_num.push_back((ch1_psum/ch1_pcnt - ch1_nsum/ch1_ncnt));
+	      thisData->ch0_asym_den.push_back((ch0_psum/ch0_pcnt + ch0_nsum/ch0_ncnt));
+	      thisData->ch1_asym_den.push_back((ch1_psum/ch1_pcnt + ch1_nsum/ch1_ncnt));
+	      
+	      ch0_psum = 0;
+	      ch1_psum = 0;
+	      ch0_pcnt = 0;
+	      ch1_pcnt = 0;
+	      ch0_nsum = 0;
+	      ch1_nsum = 0;
+	      ch0_ncnt = 0;
+	      ch1_ncnt = 0;	  
+	    }
+	    
+	    if(gate1) {
+	      ch0_psum += ch0_data*ADC_CONVERSION;
+	      ch1_psum += ch1_data*ADC_CONVERSION;
+	      ch0_pcnt++;
+	      ch1_pcnt++;
+	    }
+	    if(!gate1) {
+	      ch0_nsum += ch0_data*ADC_CONVERSION;
+	      ch1_nsum += ch1_data*ADC_CONVERSION;
+	      ch0_ncnt++;
+	      ch1_ncnt++;
+	    }
+	    
+	    sTimeP = sTime;
+	    cTimeP = cTime;
+	    tStampP = tStamp;
+	    p++;
+	    newRun = 0;
+	  }	
+	  k++;
+	  bi = bi + 16 + nSamp*8;
 	}
-	
-	thisData->ch0_sum += ch0_data*ADC_CONVERSION;
-	thisData->ch1_sum += ch1_data*ADC_CONVERSION;
-	thisData->ch0_ssq += ch0_data*ADC_CONVERSION*ch0_data*ADC_CONVERSION;
-	thisData->ch1_ssq += ch1_data*ADC_CONVERSION*ch1_data*ADC_CONVERSION;
-	
-	if(gate1 != g1cr){g1cr = gate1; flc1++;}
-	
-	if(flc1 == 2){
-	  flc1 = 0;
-	  
-	  thisData->ch0_asym.push_back((ch0_psum/ch0_pcnt - ch0_nsum/ch0_ncnt)/(ch0_psum/ch0_pcnt + ch0_nsum/ch0_ncnt));
-	  thisData->ch1_asym.push_back((ch1_psum/ch1_pcnt - ch1_nsum/ch1_ncnt)/(ch1_psum/ch1_pcnt + ch1_nsum/ch1_ncnt));
-	  
-	  thisData->ch0_asym_num.push_back((ch0_psum/ch0_pcnt - ch0_nsum/ch0_ncnt));
-	  thisData->ch1_asym_num.push_back((ch1_psum/ch1_pcnt - ch1_nsum/ch1_ncnt));
-	  thisData->ch0_asym_den.push_back((ch0_psum/ch0_pcnt + ch0_nsum/ch0_ncnt));
-	  thisData->ch1_asym_den.push_back((ch1_psum/ch1_pcnt + ch1_nsum/ch1_ncnt));
-	  
-	  ch0_psum = 0;
-	  ch1_psum = 0;
-	  ch0_pcnt = 0;
-	  ch1_pcnt = 0;
-	  ch0_nsum = 0;
-	  ch1_nsum = 0;
-	  ch0_ncnt = 0;
-	  ch1_ncnt = 0;	  
-	}
-	
-	if(gate1) {
-	  ch0_psum += ch0_data*ADC_CONVERSION;
-	  ch1_psum += ch1_data*ADC_CONVERSION;
-	  ch0_pcnt++;
-	  ch1_pcnt++;
-	}
-	if(!gate1) {
-	  ch0_nsum += ch0_data*ADC_CONVERSION;
-	  ch1_nsum += ch1_data*ADC_CONVERSION;
-	  ch0_ncnt++;
-	  ch1_ncnt++;
-	}
-	
-	sTimeP = sTime;
-	cTimeP = cTime;
-	tStampP = tStamp;
-	p++;
-	newRun = 0;
-      }	
-      k++;
-      bi = bi + 16 + nSamp*8;
+      
+	free(pkt->data);
+	pkt = NULL;
+	rDat->dQue.pop();
+      }
     }
     
     RunStartIndex += p;
@@ -745,17 +886,10 @@ void* CMData::FillRootTreeThread(void *vargp)
     thisData->ch1_mean = thisData->ch1_sum/thisData->ch1_data.size(); 
     thisData->ch0_sig = sqrt(thisData->ch0_ssq/thisData->ch0_data.size()-thisData->ch0_mean*thisData->ch0_mean); 
     thisData->ch1_sig = sqrt(thisData->ch1_ssq/thisData->ch1_data.size()-thisData->ch1_mean*thisData->ch1_mean);
-    // if(IsDataFileOpen()){
-    // 	iSettings.currentData0 = ch0_num;
-    // 	iSettings.currentData1 = ch1_num;
-    // 	iSettings.PreScFactor = PreSc;
-    // 	iSettings.RunLength = ceil(p*PreSc/SAMPLES_PER_SECOND);
-    // 	iSettings.SamplingDelay = 0;
-    // }
     thisData->RunLength = cTime;
     thisData->NSamples = SampRead;//ReadNSamples;
     tmpData = thisData;
-    //cout << "ch0 buffer = " << tmpData->ch0_data.size() << endl;
+
     if(fOpen){
       if(dataTree){
 	dataTree->Fill();	
@@ -772,9 +906,10 @@ void* CMData::FillRootTreeThread(void *vargp)
     }
     if(thisData)
       delete thisData;
-    free(rPkt->data);
-    rPkt = NULL;
-    lQue->pop();
+
+    delete rDat;
+    rQue->pop();
+    
     gSystem->ProcessEvents();
     //previousRun = currentRun;
   }
@@ -795,9 +930,9 @@ void* CMData::FillRootTreeThread(void *vargp)
 
   
   // gSystem->ProcessEvents();
-  // if(rPkt){
-  //   free(rPkt->data);
-  //   rPkt = NULL;
+  // if(pkt){
+  //   free(pkt->data);
+  //   pkt = NULL;
   //   lQue->pop();
   //   cout << "Done filling this packet." << endl;
   // }
@@ -805,204 +940,6 @@ void* CMData::FillRootTreeThread(void *vargp)
   return NULL;
 }
 
-void CMData::FillRootTree()
-{
-  pkt *data;
-  rawPkt *rPkt;
-
-  size_t bi = 0;
-  uint16_t num_words;  //2 bytes
-  uint32_t num_pkt;    //4 bytes
-  uint8_t padding;     //1 byte
-  uint8_t id;          //1 byte to unsigned int
-  uint64_t tStamp;     //8 bytes
-  
-  uint16_t nSamp;
-  uint16_t SampRead = 0;
-  int32_t ch0;           //4 bytes
-  int32_t ch1;           //4 bytes
-  int32_t ch0_data;      //4 bytes
-  int32_t ch1_data;      //4 bytes
-  uint32_t ch0_num;      //4 bytes
-  uint32_t ch1_num;      //4 bytes
-  uint32_t PreSc;
-  uint64_t sTime;          //absolute sample time stamp for each run
-  uint64_t sTimeP = 0;     //dumy
-  uint64_t iTime;          //run start time stamp  
-  uint64_t cTime = 0;      //current time stamp within run relative to run start time
-  uint64_t cTimeP = 0;
-  uint64_t tStampP = 0;
-
-  uint32_t gate1;
-  uint32_t gate2;
-
-  double ch0_psum = 0;
-  double ch0_nsum = 0;
-  double ch0_pcnt = 0;
-  double ch0_ncnt = 0;
-  double ch1_psum = 0;
-  double ch1_nsum = 0;
-  double ch1_pcnt = 0;
-  double ch1_ncnt = 0;
-
-  int g1cr, flc1;
-  int g2cr, flc2;
-  
-  double t1 = 0, t2 = 0;
-  int p = 0, k = 0;
-
-  tDataSamples *thisData;
-
-  if(!dataQue.empty()){
- 
-    thisData = new tDataSamples;
-    thisData->ch0_sum = 0;
-    thisData->ch1_sum = 0;
-    thisData->ch0_ssq = 0;
-    thisData->ch1_ssq = 0;
-    PlotData.push_back(thisData);
-    
-    rPkt = dataQue.front();
-    if(rPkt){     
-      cout << "Filling tree with data packets for run: " << rPkt->run << endl;
-      while(bi < rPkt->length){
-	
-	memcpy(&num_words,&(rPkt->data)[bi+0],2);
-	memcpy(&num_pkt,&(rPkt->data)[bi+2],4);
-	memcpy(&padding,&(rPkt->data)[bi+6],1);
-	memcpy(&id,&(rPkt->data)[bi+7],1);
-	memcpy(&tStamp,&(rPkt->data)[bi+8],8);	
- 	nSamp = num_words - 1;
-	
-	for(int n = 0; n < nSamp; n++){
-	  
-	  memcpy(&ch0,&(rPkt->data)[bi+16+n*8],4);
-	  memcpy(&ch1,&(rPkt->data)[bi+16+n*8+4],4);
-
-	  ch0_data = ch0 >> 14;
-	  ch1_data = ch1 >> 14;
-	  PreSc = ((ch0 >> 4) & 0x7F)+1;
-	  ch0_num = ch0 & 0xF;
-	  ch1_num = ch1 & 0xF;
-
-	  gate1 = (ch0 >> 12) & 0x1;
-	  gate2 = (ch0 >> 13) & 0x1;
-	  
-	  if(ch0_num == ch1_num){
-	    sTime = (tStamp + ((n*2) * TS_CONVERSION * PreSc)) *  TS_TO_NS;
-	  }
-	  else{
-	    sTime = (tStamp + (n * TS_CONVERSION * PreSc)) * TS_TO_NS;
-	  }
-
-	  if(!p){
-	    iTime = sTime;
-	    sTimeP = sTime;
-	    cTimeP = cTime;
-	    tStampP = tStamp;
-	    g1cr = gate1;
-	    flc1 = 0;
-	    g2cr = gate2;
-	    flc2 = 0;
-	  }
-
-	  cTime = sTime-iTime + RunStartTime;
-
-	  if(!dRootFileWriteReduced){
-	    thisData->ch0_data.push_back(ch0_data*ADC_CONVERSION);
-	    thisData->ch1_data.push_back(ch1_data*ADC_CONVERSION);
-	    thisData->gate1.push_back(gate1);
-	    thisData->gate2.push_back(gate2);
-	    thisData->tStmp.push_back(cTime*1e-6);
-	    if((sTime - sTimeP) > TS_TO_NS*TS_CONVERSION*PreSc){	    
-	      thisData->tStmpDiff.push_back((sTime - sTimeP)*1e-6);
-	      thisData->tStmpDiffTime.push_back(cTime*1e-6);
-	    }
-	  }
-	  
-	  thisData->ch0_sum += ch0_data*ADC_CONVERSION;
-	  thisData->ch1_sum += ch1_data*ADC_CONVERSION;
-	  thisData->ch0_ssq += ch0_data*ADC_CONVERSION*ch0_data*ADC_CONVERSION;
-	  thisData->ch1_ssq += ch1_data*ADC_CONVERSION*ch1_data*ADC_CONVERSION;
-
-	  if(gate1 != g1cr){g1cr = gate1; flc1++;}
-
-	  if(flc1 == 2){
-	    flc1 = 0;
-	    
-	    thisData->ch0_asym.push_back((ch0_psum/ch0_pcnt - ch0_nsum/ch0_ncnt)/(ch0_psum/ch0_pcnt + ch0_nsum/ch0_ncnt));
-	    thisData->ch1_asym.push_back((ch1_psum/ch1_pcnt - ch1_nsum/ch1_ncnt)/(ch1_psum/ch1_pcnt + ch1_nsum/ch1_ncnt));
-
-	    thisData->ch0_asym_num.push_back((ch0_psum/ch0_pcnt - ch0_nsum/ch0_ncnt));
-	    thisData->ch1_asym_num.push_back((ch1_psum/ch1_pcnt - ch1_nsum/ch1_ncnt));
-	    thisData->ch0_asym_den.push_back((ch0_psum/ch0_pcnt + ch0_nsum/ch0_ncnt));
-	    thisData->ch1_asym_den.push_back((ch1_psum/ch1_pcnt + ch1_nsum/ch1_ncnt));
-	    
-	    ch0_psum = 0;
-	    ch1_psum = 0;
-	    ch0_pcnt = 0;
-	    ch1_pcnt = 0;
-	    ch0_nsum = 0;
-	    ch1_nsum = 0;
-	    ch0_ncnt = 0;
-	    ch1_ncnt = 0;
-	  }
-  
-	  if(gate1) {
-	    ch0_psum += ch0_data*ADC_CONVERSION;
-	    ch1_psum += ch1_data*ADC_CONVERSION;
-	    ch0_pcnt++;
-	    ch1_pcnt++;
-	  }
-	  if(!gate1) {
-	    ch0_nsum += ch0_data*ADC_CONVERSION;
-	    ch1_nsum += ch1_data*ADC_CONVERSION;
-	    ch0_ncnt++;
-	    ch1_ncnt++;
-	  }
-	  
-	  sTimeP = sTime;
-	  cTimeP = cTime;
-	  tStampP = tStamp;
-	  p++;
-	}	
-	k++;
-	bi = bi + 16 + nSamp*8;
-      }
-      
-      RunStartTime = cTime;
-      RunStartIndex += p;
-      thisData->PreScF = PreSc;
-      thisData->ch0_num = ch0_num;
-      thisData->ch1_num = ch1_num;
-      // thisData->ch0_num = ch0_num;
-      thisData->ch0_mean = thisData->ch0_sum/thisData->ch0_data.size(); 
-      thisData->ch1_mean = thisData->ch1_sum/thisData->ch1_data.size(); 
-      thisData->ch0_sig = sqrt(thisData->ch0_ssq/thisData->ch0_data.size()-thisData->ch0_mean*thisData->ch0_mean); 
-      thisData->ch1_sig = sqrt(thisData->ch1_ssq/thisData->ch1_data.size()-thisData->ch1_mean*thisData->ch1_mean);
-      if(IsDataFileOpen()){
-	iSettings.currentData0 = ch0_num;
-	iSettings.currentData1 = ch1_num;
-	iSettings.PreScFactor = PreSc;
-	iSettings.RunLength = ceil(p*PreSc/SAMPLES_PER_SECOND);
-	iSettings.SamplingDelay = 0;
-      }
-      thisData->RunLength = iSettings.RunLength;
-      thisData->NSamples = ReadNSamples;
-      
-      if(IsRootFileOpen()){
-	tmpDataSmpl = thisData;
-	if(DataTree)
-	  DataTree->Fill();	
-      }
-      cout << "Done filling packet(s)." << endl;
-
-      gSystem->ProcessEvents();
-    }
-    DataTree->AutoSave("FlushBaskets");    
-  }
-
-}
 
 
 Int_t CMData::OpenRootFile(const char* file)
@@ -1062,8 +999,18 @@ void CMData::WriteSettings()
       *SettingsOutFile << "ReadChannel1 " << iSettings.currentData0  << '\n';
       *SettingsOutFile << "ReadChannel2 " << iSettings.currentData1  << '\n';
       *SettingsOutFile << "PrescaleFactor " << iSettings.PreScFactor  << '\n';
-      *SettingsOutFile << "RunLength(s) " << iSettings.RunLength  << '\n';
+      *SettingsOutFile << "RunLength[s] " << iSettings.RunLength  << '\n';
+      *SettingsOutFile << "Reversal Frequency " << iSettings.ReversalFreq  << '\n';     
       *SettingsOutFile << "SamplingDelay " << iSettings.SamplingDelay << '\n';
+
+      *SettingsOutFile << "IntMode " << iSettings.IntMode << '\n';   //toggles integration and streaming mode : 1 = integration on
+      *SettingsOutFile << "SingleBlock " << iSettings.IntModeSingle << '\n';  //enables single integration region  (e.g. the enitre helicity window)
+      *SettingsOutFile << "AllChannels " << iSettings.streamAll << '\n';   //enable streaming all 16 channels, but at much reduced sample factor
+      *SettingsOutFile << "PocklesSettle " << iSettings.pockSettle << '\n';  //sets the pockels cell settle time delay in  8 ns intervals
+      *SettingsOutFile << "TotalSamplingDelay " << iSettings.totalSamplingDelay << '\n';   //sum of the pockles cell and additional adc/sampling delay in 8 ns intervals
+      *SettingsOutFile << "NumBlocks " << iSettings.numBlocks << '\n';   //number of blocks in helcity window
+      *SettingsOutFile << "BlockLength " << iSettings.blockSize << '\n';   // length of each block currently in terms of 8 ns clock cycles
+      
       SettingsOutFile->close();
     }    
   }

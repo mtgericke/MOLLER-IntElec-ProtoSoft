@@ -60,6 +60,16 @@ struct rawPkt{
 
 };
 
+struct runData {
+
+  queue<rawPkt*>  dQue;
+  int run;
+  uint32_t convClk;
+  string FName;
+  int NSamples;
+ 
+};
+
 struct pkt{
   uint64_t ts;
   int32_t ch0;            
@@ -71,7 +81,7 @@ struct pkt{
   uint32_t PreSc;
 };
 
-enum SockType {CNTRL,DATA};
+enum SockType {CNTRL,INTEG,STREAM};
 enum ActType {READ,WRITE};
 
 
@@ -118,7 +128,10 @@ struct rArgs{
   string FName;
   int NSamples;
   void *sock;
+  runData *rDat;
   rawPkt* pkt;
+  SockType socktype;
+  char dType[4];
 };
 
 class CMData;
@@ -127,6 +140,7 @@ struct fArgs{
   //int NSamples;
   //void *sock;
   queue<rawPkt*> *mQue;
+  queue<runData*> *rQue;
   CMData *mExe;
   Bool_t wReduced;
   tDataSamples *dSamples;
@@ -140,13 +154,56 @@ struct Settings{
 
   string IP;
   int currentRun;
-  int currentData0;
-  int currentData1;
-  int PreScFactor;
+  uint32_t currentData0;
+  uint32_t currentData1;
+  uint32_t PreScFactor;
   double RunLength;
-  int SamplingDelay;
+  int ReversalFreq;
+  uint32_t SamplingDelay;
+  uint32_t IntMode;   //toggles integration and streaming mode : 1 = integration on
+  uint32_t IntModeSingle;   //enables single integration region  (e.g. the enitre helicity window)
+  uint32_t streamAll;   //enable streaming all 16 channels, but at much reduced sample factor
+  uint32_t pockSettle;  //sets the pockels cell settle time delay in  8 ns intervals
+  uint32_t totalSamplingDelay;   //sum of the pockles cell and additional adc/sampling delay in 8 ns intervals
+  uint32_t numBlocks;   //number of blocks in helcity window
+  uint32_t blockSize;   // length of each block currently in terms of 8 ns clock cycles
   
+
+  //example:
+  //with window  = 510 us (currently hard coded in FW)
+  //totalSamplingDelay = 1250 ( = 10 us )
+  //numBlocks  = 4
+  //blockSize  = 15625 (max)  from 500000 ns / 4 / 8 ns
+
+  //but this means that we would have 125000 ns / 68 ns -> 1838 samples per block = 124984 ns (two clock cycles less)
+  //do we have to shift by 16 ns in this case, before taking the next block of data ?
+  //do we want to specify the block length in terms of number of samples and then calculate how long of a delay
+  //before starting the next block of averaging?
+
+  //No gap between blocks
+  //Pockels cell delay handled by TI
+  //Blocks the same size each time!
+  //Use number of samples to specify block length as well as the entire helicity window.
+  //We don't want any additional delay within the ADC board (unless we explicitly set it up that way)
+  //If so desired we may want to have an additional delay specified at the beginning of the first block in terms of number of samples (if possible).
+
+  
+
 };
+
+/***********************************************************************************
+// stream_ctrl 0x44 0x80002000   Ena[31]ratediv[30:24]ch1[23:20]ch0[19:16]nsamp[15:0]
+wire [47:0] spare_reg1; // 0x104 // capture/stream modifications controls
+                        //          bit0:  set to enable Averaging          
+                        //          bit1:  set to enable fixed single[~4k] region, otherwise use spare-reg2
+                        //          bit2:  set to enable fixed enable/start delays, otherwise use spare-reg1
+                        //          bit3:  set to enable streaming all adcs, otherwise just two selected adcs
+                        //          bits 19- 8: enable-delay [from trigger to enable going high]
+                        //          bits 31-20: start-delay  [from trigger to start first going high]
+wire [31:0] spare_reg2; // 0x108 // average #regions and region-size
+                        //          bits  3: 0 - number of averaging regions
+                        //          bits 31:15 - averaging region size
+/***********************************************************************************/
 
 
 static volatile int wait_for_shared_socket = 0;
@@ -175,8 +232,11 @@ private:
   pthread_t               thread_plot_id;
 
   queue<rawPkt*>          dataQue;
+  queue<runData*>        runQue;
+
+  
   rawPkt                 *aData;
-  uint32_t                ReadNSamples;
+  //uint32_t                ReadNSamples;
   vector<tDataSamples*>    PlotData;
   tDataSamples            *tmpDataSmpl;
 
@@ -218,7 +278,7 @@ private:
   static void            *GetServerData(void *vargp);
   void                    DisconnectBoard();
   static void            *FillRootTreeThread(void *vargp);
-  void                    FillRootTree();
+  //  void                    FillRootTree();
   void                    StartDataCollection();
   void                    WriteSettings();
   Int_t                   OpenRootFile(const char* file = NULL);
@@ -231,6 +291,7 @@ private:
   void                    CloseDataFile();
   Int_t                   SaveDataFile(ERFileStatus status, const char* file);
   TTree                  *GetDataTree() {return DataTree;};
+  long                   GetPacketFrameSize();
   
 public:
   CMData(int *argc, char **argv);
