@@ -4,3 +4,5 @@
 
 #pragma link C++ class CMData+;
 #pragma link C++ class tDataSamples+;
+#pragma link C++ class tDataAllChanSamples+;
+#pragma link C++ class tDataAverageSamples+;

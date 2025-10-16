@@ -45,6 +45,7 @@
 #define ADC_SAMPLE_RATE (1.0e9/(ADC_CONVERT_TIME)) // Dividing the sample rate by 2 to prevent errors in transmission
 
 #define ADC_PACKET_SIZE 0x2004
+#define ADC_PACKET_SIZE_SALL 0x600
 #define ADC_SAMPLES_SIZE (ADC_PACKET_SIZE - 4)
 
 #define ADC_MAX_VOLTAGEpp 4.096

@@ -1,11 +1,12 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 // name: CMData.h
-// date: 11-13-2023
+// date: 07-2025
 // auth: Michael Gericke
 // mail: Michael.Gericke@umanitoba.ca
 //
-// desc: This is a simple application that monitors and handles data from the
+// Description:
+//       This is a simple application that monitors and handles data from the
 //       MOLLER ADC in pre-production diagnostic mode (meaning no special acqusition
 //       software, such as the JLab CODA system has been implemented). The data is
 //       sent by the ADC over ethernet and received by this application, utilizing the
@@ -30,7 +31,9 @@
 #include <TFile.h>
 #include <TString.h>
 #include <TTree.h>
+#include <TMath.h>
 #include <cerrno>
+#include <bitset>
 
 #include <string.h>
 #include <time.h>
@@ -50,105 +53,10 @@ using namespace std;
 
 //*********************************************************************************
 
-
-struct rawPkt{
-
-  uint8_t *data;
-  size_t length;
-  uint32_t convClk;
-  Int_t run;
-
-};
-
-struct runData {
-
-  queue<rawPkt*>  dQue;
-  int run;
-  uint32_t convClk;
-  string FName;
-  int NSamples;
- 
-};
-
-struct pkt{
-  uint64_t ts;
-  int32_t ch0;            
-  int32_t ch1;            
-  int32_t ch0_data;       
-  int32_t ch1_data;       
-  uint32_t ch0_num;       
-  uint32_t ch1_num;       
-  uint32_t PreSc;
-};
+class CMData;
 
 enum SockType {CNTRL,INTEG,STREAM};
 enum ActType {READ,WRITE};
-
-
-class tDataSamples{
-
-public:
-
-  tDataSamples(){ };
-  virtual ~tDataSamples(){ };
-  
-  vector<double> tStmp;
-  vector<double> tStmpDiff;
-  vector<double> tStmpDiffTime;
-  vector<double> ch0_data;
-  vector<double> ch1_data;
-  vector<uint32_t> gate1;
-  vector<uint32_t> gate2;
-  vector<double> ch0_asym;
-  vector<double> ch0_asym_num;
-  vector<double> ch0_asym_den;  
-  vector<double> ch1_asym;
-  vector<double> ch1_asym_num;
-  vector<double> ch1_asym_den;
-  uint32_t PreScF;
-  uint32_t ch0_num;
-  uint32_t ch1_num;
-  double ch0_sum;
-  double ch1_sum;
-  double ch0_ssq;
-  double ch1_ssq;
-  double ch0_mean;
-  double ch1_mean;
-  double ch0_sig;
-  double ch1_sig;
-  double RunLength;
-  uint64_t NSamples;
-  int Run;
-
-  ClassDef(tDataSamples,1)
-} ;
-
-
-struct rArgs{
-  string FName;
-  int NSamples;
-  void *sock;
-  runData *rDat;
-  rawPkt* pkt;
-  SockType socktype;
-  char dType[4];
-};
-
-class CMData;
-struct fArgs{
-  //string FName;
-  //int NSamples;
-  //void *sock;
-  queue<rawPkt*> *mQue;
-  queue<runData*> *rQue;
-  CMData *mExe;
-  Bool_t wReduced;
-  tDataSamples *dSamples;
-  TTree *tree;
-  int nRuns;
-  // Int_t  *rStartInd;
-  // uint64_t  rStartTime;
-};
 
 struct Settings{
 
@@ -163,10 +71,10 @@ struct Settings{
   uint32_t IntMode;   //toggles integration and streaming mode : 1 = integration on
   uint32_t IntModeSingle;   //enables single integration region  (e.g. the enitre helicity window)
   uint32_t streamAll;   //enable streaming all 16 channels, but at much reduced sample factor
-  uint32_t pockSettle;  //sets the pockels cell settle time delay in  8 ns intervals
-  uint32_t totalSamplingDelay;   //sum of the pockles cell and additional adc/sampling delay in 8 ns intervals
-  uint32_t numBlocks;   //number of blocks in helcity window
-  uint32_t blockSize;   // length of each block currently in terms of 8 ns clock cycles
+  uint32_t initDelay;  //sets the initial time delay in terms of number of samples (should not be entirely zero) 
+  uint32_t totalSamplingDelay;   //sum of the initial delay and an additional adc/sampling delay in terms of samples 
+  uint32_t numBlocks;   //number of blocks in the helcity window
+  uint32_t blockSize;   // length of each block currently in terms of sample number
   
 
   //example:
@@ -206,10 +114,165 @@ wire [31:0] spare_reg2; // 0x108 // average #regions and region-size
 /***********************************************************************************/
 
 
+struct rawPkt{
+
+  uint8_t *data;
+  size_t length;
+};
+
+struct runData {
+
+  queue<rawPkt*>  dQue;
+  int run;
+  uint32_t convClk;
+  string FName;
+  int NSamples;
+  uint32_t Prescale;
+  int numBlocks;
+ 
+};
+
+struct rArgs{
+  void *sock;
+  runData *rDat;
+   SockType socktype;
+  char dType[4];
+  bool sAll;
+  bool integ;
+};
+
+struct fArgs{
+  queue<runData*> *rQue;
+  CMData *mExe;
+  Bool_t wReduced;
+  char dType[4];
+  Settings *settings;
+};
+
+class tDataSamples{
+
+public:
+
+  tDataSamples(){ };
+  virtual ~tDataSamples(){ };
+  
+  vector<double> tStmp;
+  vector<double> tStmpDiffTime;
+  vector<double> tStmpDiffLarger;
+  vector<double> tStmpDiffSmaller;
+  vector<double> PacketSmplTimeSum;
+  vector<int> Packet;
+  vector<int> PacketNSamp;  
+
+  vector<double> ch0_data;
+  vector<double> ch1_data;
+  vector<uint32_t> gate1;
+  vector<uint32_t> gate2;
+  vector<double> ch0_asym;
+  vector<double> ch0_asym_num;
+  vector<double> ch0_asym_den;  
+  vector<double> ch1_asym;
+  vector<double> ch1_asym_num;
+  vector<double> ch1_asym_den;
+  uint32_t PreScF;
+  uint32_t ch0_num;
+  uint32_t ch1_num;
+  double ch0_sum;
+  double ch1_sum;
+  double ch0_ssq;
+  double ch1_ssq;
+  double ch0_mean;
+  double ch1_mean;
+  double ch0_sig;
+  double ch1_sig;
+  double RunLength;
+  uint64_t NSamples;
+  int Run;
+
+  ClassDef(tDataSamples,1)
+} ;
+
+class tDataAllChanSamples{
+  
+public:
+  
+  tDataAllChanSamples(){ };
+  virtual ~tDataAllChanSamples(){ };
+  
+  vector<double> tStmp;
+  vector<double> tStmpDiffTime;
+  vector<double> tStmpDiffLarger;
+  vector<double> tStmpDiffSmaller;
+  vector<double> PacketSmplTimeSum;
+  vector<int> Packet;
+  vector<int> PacketNSamp;  
+  vector<double> ch_data[16];
+  vector<uint32_t> gate1;
+  vector<uint32_t> gate2;
+  uint32_t PreScF;
+  double RunLength;
+  uint64_t NSamples;
+  int Run;
+
+  ClassDef(tDataAllChanSamples,1)
+} ;
+
+struct IntegrationData{
+
+  vector<double> ch_NSamples[16];
+  vector<double> ch_Sums[16];
+  vector<double> ch_SumSq[16];
+  vector<double> ch_Mean[16];  
+  vector<double> ch_min[16];
+  vector<double> ch_max[16];
+  vector<double> ch_asym[16];
+  vector<double> ch_asym_num[16];
+  vector<double> ch_asym_den[16];
+  vector<double> tStmp;
+  vector<int> blockNum;
+  vector<uint64_t> pckCnt;
+  vector<uint64_t> totalSamples;
+  
+};
+
+class tDataAverageSamples{
+  
+public:
+  
+  tDataAverageSamples(){ };
+  virtual ~tDataAverageSamples(){ };
+  
+  vector<double> tStmp;
+  vector<uint32_t> block;
+  vector<double> ch_NSamples[16];
+  vector<double> ch_WindowNSamples[16];  
+  vector<double> ch_Sum[16];
+  vector<double> ch_WindowSum[16];
+  vector<double> ch_SumSq[16];
+  vector<double> ch_WindowSumSq[16];
+  vector<double> ch_Mean[16];
+  vector<double> ch_Sig[16];
+  vector<double> ch_min[16];
+  vector<double> ch_max[16];
+  //vector<double> ch_asym[16];
+  //vector<double> ch_asym_num[16];
+  //vector<double> ch_asym_den[16];
+  vector<uint32_t> gate1;
+  vector<uint32_t> gate2;
+  vector<uint64_t> NSamples;
+  uint32_t PreScF;
+  double RunLength;
+  int Run;
+  
+  ClassDef(tDataAverageSamples,1)
+} ;
+
+
+
+
 static volatile int wait_for_shared_socket = 0;
 
-//#define ZMQ_HAVE_POLLER
-//#define ZMQ_BUILD_DRAFT_API
+
 
 
 class CMData {
@@ -232,13 +295,14 @@ private:
   pthread_t               thread_plot_id;
 
   queue<rawPkt*>          dataQue;
-  queue<runData*>        runQue;
+  queue<runData*>         runQue;
 
   
   rawPkt                 *aData;
-  //uint32_t                ReadNSamples;
-  vector<tDataSamples*>    PlotData;
+  //   vector<tDataSamples*>    PlotData;
   tDataSamples            *tmpDataSmpl;
+  tDataAllChanSamples     *tmpDataAllChanSmpl;
+  tDataAverageSamples     *tmpDataAvgSmpl;
 
   double                  RunLength;
   int                     CurrentRun;
@@ -273,12 +337,11 @@ private:
   
   void*                   GetSocket(SockType type);
   Bool_t                  ADCMessage(ActType type, void* socket, uint32_t addr, uint32_t data, uint32_t *msgret);         
-  //Bool_t                  ConnectBoard();
-  // void                    GetServerData(queue<pkt*>*, pkt*, Bool_t*);
-  static void            *GetServerData(void *vargp);
+  Bool_t                 GetServerData(void *vargp);
   void                    DisconnectBoard();
-  static void            *FillRootTreeThread(void *vargp);
-  //  void                    FillRootTree();
+  static void            *FillRootTreeThread2Chan(void *vargp);
+  static void            *FillRootTreeThreadAllChan(void *vargp);
+  static void            *FillRootTreeThreadIntegr(void *vargp);
   void                    StartDataCollection();
   void                    WriteSettings();
   Int_t                   OpenRootFile(const char* file = NULL);
@@ -292,11 +355,13 @@ private:
   Int_t                   SaveDataFile(ERFileStatus status, const char* file);
   TTree                  *GetDataTree() {return DataTree;};
   long                   GetPacketFrameSize();
+  uint32_t               GetPrescaleFactor(uint32_t *fac);
+
   
 public:
   CMData(int *argc, char **argv);
   virtual ~CMData();
-  //ClassDef(CMData,0);
+
 };
 
 
