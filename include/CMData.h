@@ -174,6 +174,10 @@ public:
   vector<double> ch1_asym;
   vector<double> ch1_asym_num;
   vector<double> ch1_asym_den;
+
+  vector<double> ch0_blockmean;
+  vector<double> ch1_blockmean;
+  
   uint32_t PreScF;
   uint32_t ch0_num;
   uint32_t ch1_num;
@@ -184,7 +188,7 @@ public:
   double ch0_mean;
   double ch1_mean;
   double ch0_sig;
-  double ch1_sig;
+  double ch1_sig;  
   double RunLength;
   uint64_t NSamples;
   int Run;
@@ -232,6 +236,7 @@ struct IntegrationData{
   vector<int> blockNum;
   vector<uint64_t> pckCnt;
   vector<uint64_t> totalSamples;
+  vector<uint64_t> pckCntDiff;
   
 };
 
@@ -244,6 +249,8 @@ public:
   
   vector<double> tStmp;
   vector<uint32_t> block;
+  vector<uint32_t> pckCntDiff;
+  vector<uint64_t> pckCnt;
   vector<double> ch_NSamples[16];
   vector<double> ch_WindowNSamples[16];  
   vector<double> ch_Sum[16];

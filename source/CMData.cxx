@@ -748,8 +748,8 @@ void* CMData::FillRootTreeThread2Chan(void *vargp)
   uint32_t ch1_num;      //4 bytes
   uint32_t PreSc;
 
-  uint32_t gate1;
-  uint32_t gate2;
+  uint32_t gate1, pgate1 = 0;
+  uint32_t gate2, pgate2 = 0;
 
   double ch0_psum = 0;
   double ch0_nsum = 0;
@@ -760,10 +760,18 @@ void* CMData::FillRootTreeThread2Chan(void *vargp)
   double ch1_pcnt = 0;
   double ch1_ncnt = 0;
 
+  double ch0_blsum;
+  double ch1_blsum;
+
+
   int g1cr, flc1;
   int g2cr, flc2;
+
+  int blnum = 4;
+  int blsmpls = 1225;
+  int smpldelay = 200;
   
-  int p = 0, k = 0;
+  int p = 0, k = 0, blcnt = blnum, blsmpcnt = blsmpls, delaysmplcnt = 0;
   
   tDataSamples *thisData;
   tDataSamples *tmpData;
@@ -861,90 +869,120 @@ void* CMData::FillRootTreeThread2Chan(void *vargp)
 	  //cout << "ch0_data = " << std::hex << ch0_data << std::dec << endl;
 	  ch1_data = (ch1 >> 14);
 	  //cout << "ch1_data = " << std::hex << ch1_data << std::dec << endl;
-	    PreSc = ((ch0 >> 4) & 0x7F)+1;
-	    ch0_num = ch0 & 0xF;
-	    ch1_num = ch1 & 0xF;
-	    
-	    gate1 = (ch0 >> 12) & 0x1;
-	    gate2 = (ch0 >> 13) & 0x1;
-	    
-	    // if(ch0_num == ch1_num){
-	    //   sTime = (tStamp + ((n*2) * TS_CONVERSION * PreSc)) *  TS_TO_NS;
-	    // }
-	    // else{
-	    //   sTime = (tStamp + (n * TS_CONVERSION * PreSc)) * TS_TO_NS;
-	    // }
-
-	    rTime += TS_CONVERSION*PreSc*TS_TO_NS;
-	    sTime += TS_CONVERSION*PreSc*TS_TO_NS;
-	    // c++;
-	    // cout << std::dec << c << "  " << "n = " << n << ", pcnt = " << pcnt << "  tStamp = " << tStamp << "  ptStamp = " << ptStamp << "  dtStamp = " << dtStamp*1e-6 << "  sTime = " << sTime*1e-6  << "  rTime = " << rTime*1e-6  << " drTime = " <<  (rTime-prTime)*1e-6 << endl;
-
-	    
-	    if(!p){
-	      // iTime = rTime;
-	      // sTimeP = rTime;
-	      // cTimeP = cTime;
-	      // tStampP = tStamp;
-	      g1cr = gate1;
-	      flc1 = 0;
-	      g2cr = gate2;
-	      flc2 = 0;
-	    }
-	    	    
-	    thisData->ch0_data.push_back(ch0_data*ADC_CONVERSION);
-	    thisData->ch1_data.push_back(ch1_data*ADC_CONVERSION);
-	    thisData->gate1.push_back(gate1);
-	    thisData->gate2.push_back(gate2);
-	    thisData->tStmp.push_back(rTime*1e-6);
-	    
-	    thisData->ch0_sum += ch0_data*ADC_CONVERSION;
-	    thisData->ch1_sum += ch1_data*ADC_CONVERSION;
-	    thisData->ch0_ssq += ch0_data*ADC_CONVERSION*ch0_data*ADC_CONVERSION;
-	    thisData->ch1_ssq += ch1_data*ADC_CONVERSION*ch1_data*ADC_CONVERSION;
-	    
-	    if(gate1 != g1cr){g1cr = gate1; flc1++;}
-	    
-	    if(flc1 == 2){
-	      flc1 = 0;
-	      
-	      thisData->ch0_asym.push_back((ch0_psum/ch0_pcnt - ch0_nsum/ch0_ncnt)/(ch0_psum/ch0_pcnt + ch0_nsum/ch0_ncnt));
-	      thisData->ch1_asym.push_back((ch1_psum/ch1_pcnt - ch1_nsum/ch1_ncnt)/(ch1_psum/ch1_pcnt + ch1_nsum/ch1_ncnt));
-	      
-	      thisData->ch0_asym_num.push_back((ch0_psum/ch0_pcnt - ch0_nsum/ch0_ncnt));
-	      thisData->ch1_asym_num.push_back((ch1_psum/ch1_pcnt - ch1_nsum/ch1_ncnt));
-	      thisData->ch0_asym_den.push_back((ch0_psum/ch0_pcnt + ch0_nsum/ch0_ncnt));
-	      thisData->ch1_asym_den.push_back((ch1_psum/ch1_pcnt + ch1_nsum/ch1_ncnt));
-	      
-	      ch0_psum = 0;
-	      ch1_psum = 0;
-	      ch0_pcnt = 0;
-	      ch1_pcnt = 0;
-	      ch0_nsum = 0;
-	      ch1_nsum = 0;
-	      ch0_ncnt = 0;
-	      ch1_ncnt = 0;	  
-	    }
-	    
-	    if(gate1) {
-	      ch0_psum += ch0_data*ADC_CONVERSION;
-	      ch1_psum += ch1_data*ADC_CONVERSION;
-	      ch0_pcnt++;
-	      ch1_pcnt++;
-	    }
-	    if(!gate1) {
-	      ch0_nsum += ch0_data*ADC_CONVERSION;
-	      ch1_nsum += ch1_data*ADC_CONVERSION;
-	      ch0_ncnt++;
-	      ch1_ncnt++;
-	    }
-	    
+	  PreSc = ((ch0 >> 4) & 0x7F)+1;
+	  ch0_num = ch0 & 0xF;
+	  ch1_num = ch1 & 0xF;
+	  
+	  gate1 = (ch0 >> 12) & 0x1;
+	  gate2 = (ch0 >> 13) & 0x1;
+	  
+	  // if(ch0_num == ch1_num){
+	  //   sTime = (tStamp + ((n*2) * TS_CONVERSION * PreSc)) *  TS_TO_NS;
+	  // }
+	  // else{
+	  //   sTime = (tStamp + (n * TS_CONVERSION * PreSc)) * TS_TO_NS;
+	  // }
+	  
+	  rTime += TS_CONVERSION*PreSc*TS_TO_NS;
+	  sTime += TS_CONVERSION*PreSc*TS_TO_NS;
+	  // c++;
+	  // cout << std::dec << c << "  " << "n = " << n << ", pcnt = " << pcnt << "  tStamp = " << tStamp << "  ptStamp = " << ptStamp << "  dtStamp = " << dtStamp*1e-6 << "  sTime = " << sTime*1e-6  << "  rTime = " << rTime*1e-6  << " drTime = " <<  (rTime-prTime)*1e-6 << endl;
+	  
+	  
+	  if(!p){
+	    // iTime = rTime;
 	    // sTimeP = rTime;
 	    // cTimeP = cTime;
 	    // tStampP = tStamp;
-	    prTime = rTime;
-	    p++;
-	    newRun = 0;
+	    g1cr = gate1;
+	    flc1 = 0;
+	    g2cr = gate2;
+	    flc2 = 0;
+	  }
+	    	    
+	  thisData->ch0_data.push_back(ch0_data*ADC_CONVERSION);
+	  thisData->ch1_data.push_back(ch1_data*ADC_CONVERSION);
+	  thisData->gate1.push_back(gate1);
+	  thisData->gate2.push_back(gate2);
+	  thisData->tStmp.push_back(rTime*1e-6);
+	  
+	  thisData->ch0_sum += ch0_data*ADC_CONVERSION;
+	  thisData->ch1_sum += ch1_data*ADC_CONVERSION;
+	  thisData->ch0_ssq += ch0_data*ADC_CONVERSION*ch0_data*ADC_CONVERSION;
+	  thisData->ch1_ssq += ch1_data*ADC_CONVERSION*ch1_data*ADC_CONVERSION;
+	  	    
+	  if(gate1 != g1cr){g1cr = gate1; flc1++;}
+	    
+	  if(flc1 == 2){
+	    flc1 = 0;
+	    
+	    thisData->ch0_asym.push_back((ch0_psum/ch0_pcnt - ch0_nsum/ch0_ncnt)/(ch0_psum/ch0_pcnt + ch0_nsum/ch0_ncnt));
+	    thisData->ch1_asym.push_back((ch1_psum/ch1_pcnt - ch1_nsum/ch1_ncnt)/(ch1_psum/ch1_pcnt + ch1_nsum/ch1_ncnt));
+	    
+	    thisData->ch0_asym_num.push_back((ch0_psum/ch0_pcnt - ch0_nsum/ch0_ncnt));
+	    thisData->ch1_asym_num.push_back((ch1_psum/ch1_pcnt - ch1_nsum/ch1_ncnt));
+	    thisData->ch0_asym_den.push_back((ch0_psum/ch0_pcnt + ch0_nsum/ch0_ncnt));
+	    thisData->ch1_asym_den.push_back((ch1_psum/ch1_pcnt + ch1_nsum/ch1_ncnt));
+	    
+	    ch0_psum = 0;
+	    ch1_psum = 0;
+	    ch0_pcnt = 0;
+	    ch1_pcnt = 0;
+	    ch0_nsum = 0;
+	    ch1_nsum = 0;
+	    ch0_ncnt = 0;
+	    ch1_ncnt = 0;	  
+	  }
+
+	  if(!pgate1 && gate1){
+	    blcnt = 0;
+	    blsmpcnt = 0;
+	    ch0_blsum = 0;
+	    ch1_blsum = 0;
+	    delaysmplcnt = 0;
+	  }
+	  pgate1 = gate1;
+
+	  if(blcnt < blnum && delaysmplcnt >= smpldelay){
+	    
+	    if(blsmpcnt < blsmpls){
+	      ch0_blsum += ch0_data*ADC_CONVERSION;
+	      ch1_blsum += ch1_data*ADC_CONVERSION;
+	      blsmpcnt++;
+	    }
+
+	    if(blsmpcnt == blsmpls){
+	      thisData->ch0_blockmean.push_back(ch0_blsum/blsmpls);
+	      thisData->ch1_blockmean.push_back(ch1_blsum/blsmpls);
+	      blsmpcnt = 0;
+	      ch0_blsum = 0;
+	      ch1_blsum = 0;
+	      blcnt++;
+	    }
+
+	  }
+	  
+	  
+	  if(gate1) {
+	    ch0_psum += ch0_data*ADC_CONVERSION;
+	    ch1_psum += ch1_data*ADC_CONVERSION;
+	    ch0_pcnt++;
+	    ch1_pcnt++;
+	  }
+	  if(!gate1) {
+	    ch0_nsum += ch0_data*ADC_CONVERSION;
+	    ch1_nsum += ch1_data*ADC_CONVERSION;
+	    ch0_ncnt++;
+	    ch1_ncnt++;
+	  }
+	  
+	  // sTimeP = rTime;
+	  // cTimeP = cTime;
+	  // tStampP = tStamp;
+	  prTime = rTime;
+	  p++;
+	  delaysmplcnt++;
+	  newRun = 0;
 	}	
 	
 	free(pkt->data);
@@ -1251,7 +1289,7 @@ void* CMData::FillRootTreeThreadIntegr(void *vargp)
   if(SingleWin) numBlocks = 1;
 
   int block;
-  uint64_t pcktCnt;
+  uint64_t pcktCnt, prevPckt;
   uint64_t tSamples;
 
   TString ROOTFileName;
@@ -1334,13 +1372,17 @@ void* CMData::FillRootTreeThreadIntegr(void *vargp)
 
 	  tStamp = buff[n+1];
 	  block  = (buff[n+2] >> 60) & 0xF;
-	  pcktCnt = buff[n+2] & 0xFFFFFFFFFFFFFFF;
+	  pcktCnt = buff[n+2] & 0x0FFFFFFFFFFFFFFF;	  	  
 	  tSamples = buff[n+3];
 
 	  if(!rcnt && !pcnt){
 	    RunSeqStartTime = tStamp;
+	    ptStamp = tStamp;
+	    prevPckt = pcktCnt;
+		
 	  }
 	  RunningSampleTime = (tStamp - RunSeqStartTime)*TS_TO_NS;
+	  
 
 	  // if(!pcnt) {
 	  //   ptStamp = tStamp;
@@ -1352,6 +1394,15 @@ void* CMData::FillRootTreeThreadIntegr(void *vargp)
 	  thisData->tStmp.push_back(RunningSampleTime*1e-6);
 	  thisData->block.push_back(block);
 	  thisData->NSamples.push_back(tSamples);
+	  thisData->pckCntDiff.push_back(pcktCnt -  prevPckt);
+	  thisData->pckCnt.push_back(pcktCnt);
+
+	  cout << "pckt = " << pcktCnt << endl;
+	  cout << "block = " << block << endl;
+	  cout << "tstmp = " << tStamp << endl;
+	  cout << "tstmpdiff = " << tStamp -  ptStamp << endl;
+	  cout << "pcktdiff = " << pcktCnt -  prevPckt << endl;
+	  prevPckt = pcktCnt;
 
 	  for(int c = 0; c < 16; c++){
 	    ch_misc[c] = buff[n+c+4];
@@ -1401,9 +1452,8 @@ void* CMData::FillRootTreeThreadIntegr(void *vargp)
 	  
 	  
 	  //p++;
-	  ptStamp = tStamp;
 	  tTime += rTime;	
-
+	  ptStamp = tStamp;
 	  newRun = 0;
 	}	
 	
@@ -1411,7 +1461,9 @@ void* CMData::FillRootTreeThreadIntegr(void *vargp)
 	pkt = NULL;
 	rDat->dQue.pop();
 	pcnt++;
+	      
       }
+
     }
     
     //RunStartIndex += p;
