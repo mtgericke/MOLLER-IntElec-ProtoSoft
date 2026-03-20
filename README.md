@@ -5,7 +5,7 @@
 * Ubuntu 22.04.3 LTS
 * 6.2.0-34-generic
 * ROOT 6.28/06 with all required and recommended support programs
-* libzmq3-dev (note: the new version of the firmware/software uses the zmq_poller routines, which are still only part of the draft version of zmq for C/C++. To get it to work, I had to download the source and compile the zmq lib from scratch, with #define/#endif ZMQ_BUILD_DRAFT_API in the zmq.h source commented out. The CMakeLists.txt file for this version uses the specific directory where I installed that compiled library. You will have to do the same and change the directory for zmq in the CMakeLists.txt, if you install it in a different directory.)
+* -- THIS PART MAY NOT BE NECESSARY ANYMORE, DEPENDING ON THE LINUX VERSION YOU ARE USING -- libzmq3-dev (note: the new version of the firmware/software uses the zmq_poller routines, which are still only part of the draft version of zmq for C/C++. To get it to work, I had to download the source and compile the zmq lib from scratch, with #define/#endif ZMQ_BUILD_DRAFT_API in the zmq.h source commented out. The CMakeLists.txt file for this version uses the specific directory where I installed that compiled library. You will have to do the same and change the directory for zmq in the CMakeLists.txt, if you install it in a different directory.)
 * There are two different executables in this package.
 * The interface program CMMonitor that uses the ROOT graphical user interface components (TG*) and ...
 * The new CMData program, which is an example of how to use the code without the GUI
