@@ -513,10 +513,10 @@ void CMData::StartDataCollection()
   if(convert_clocks < MIN_CONVERT_CLOCKS)
     convert_clocks = MIN_CONVERT_CLOCKS;
   
-  ADCMessage(WRITE,csocket,reg3,avgmsg,&retmsg);
-  ADCMessage(READ,csocket,reg3,0,&retmsg);
   ADCMessage(WRITE,csocket,reg4,avgmsg2,&retmsg);
   ADCMessage(READ,csocket,reg4,0,&retmsg);
+  ADCMessage(WRITE,csocket,reg3,avgmsg,&retmsg);
+  ADCMessage(READ,csocket,reg3,0,&retmsg);
 
   SockType sType; // = (integrate) ? INTEG : STREAM;
   
@@ -707,6 +707,7 @@ Bool_t  CMData::GetServerData(void *vargp)
       }
       else{
 	samples_written += (len - 8) / (115*8);
+	//samples_written += (len - 8) / (116*8);
       }
     }
   }
@@ -1140,7 +1141,7 @@ void* CMData::FillRootTreeThreadAllChan(void *vargp)
 	sTime = 0;  //accumulate this only over the samples in a given packet
 	for(int n = 0; n < k; n += 5){
 
-	  //Note: The kludgy code below is used to implement a compiler inependent way to bit shift signed values.
+	  //Note: The kludgy code below is used to implement a compiler independent way to bit shift signed values.
 	  //OR-ing the data with 0xFFFC0000 below ensures that negative values are properly bit shifted to
 	  //higher precision variables (e.g. the 18 bit ADC samples into 32 bit integers). The first condition
 	  //(*tmpb & 0x20000) tests if the MSB (sign bit) of the 18 bit sample is 1 or 0;
@@ -1350,23 +1351,29 @@ void* CMData::FillRootTreeThreadIntegr(void *vargp)
 	
 	k = (pkt->length/8) - 1;    
 
-	num_words = buff[0] & 0xFFFF;  
-	//Number of data words (in this case that would be 67 64 bit words)
-	//word 0: packet header
-	//word 1: 64 bit time stamp
-	//word 2: 60 bit packet counter + 4 bit block number (within helicity window)
-	//word 3: 64 bit total number of samples captured in the helicity window (for all channels)
-	//words  4-19: 20 bit max + 20 bit min + 2 bit trigger (two TTL lemo inputs) + 22 bit empty for each of 16 channels (trigger info copied) 
-	//words 20-35: 64 bit channel sample count for the block for each of 16 channels
-	//words 36-51: 64 bit channel sum for the block for each of 16 channels
-	//words 52-67: 64 bit channel sum-of-squares the block for each of 16 channels	
-	num_pkt = (buff[0] >> 16) & 0xFFFFFFFF;   //Not really used
-	id = (buff[0] >> 56) & 0xFF;  //Only available if the board ID has been set
+	//***Fix this *** 
 	
-	SampRead += k/(num_words);  //Would be just +1 in this case. k = 67 here since only one sample is sent per packet
+	//Number of data words (in this case that would be 117 64 bit words)
+	//word 0: packet header (bit [15:0] = number of 64 bit data words in the packet, [63:56] = mode ID: AA = integration mode DD = streaming mode 
+	//word 1: 64 bit time stamp
+	//word 2: 64 bit packet counter
+	//word 3: 64 bit block number (within helicity window). Really only uses 4 bits
+	//word 4: 64 bit total number of samples captured in the helicity window (for all channels)
+	//words  5-20: 20 bit max + 20 bit min + 2 bit trigger (two TTL lemo inputs) + 22 bit empty for each of 16 channels (trigger info copied) 
+	//words 21-36: 64 bit channel running sample count for the entire helicity window for each of 16 channels
+	//words 37-52: 64 bit channel running sum for the entire helicity window for each of 16 channels
+	//words 53-68: 64 bit channel running sum-of-squares the entire helicity window for each of 16 channels
+	//words 69-84: 64 bit channel sample count per block for each of 16 channels
+	//words 85-100: 64 bit channel sum per block for each of 16 channels
+	//words 101-116: 64 bit channel sum-of-squares per block for each of 16 channels
+	//
+	num_words = buff[0] & 0xFFFF;
+	id = (buff[0] >> 56) & 0xFF;  //Only meaningful if the board ID has been set
+	
+	SampRead += k/(num_words);  //Would be just +1 in this case, since we should have k = 116 here since only one block is sent per packet
 
 	bcnt = 0;
-	sTime = 0;  //accumulate this only over the samples in a given packet
+	sTime = 0;  
 	//make this a "silly" loop, just in case we ever change the number samples sent per packet - at the moment this will only "loop" once.
 	for(int n = 0; n < k; n += num_words){
 
@@ -1374,6 +1381,9 @@ void* CMData::FillRootTreeThreadIntegr(void *vargp)
 	  block  = (buff[n+2] >> 60) & 0xF;
 	  pcktCnt = buff[n+2] & 0x0FFFFFFFFFFFFFFF;	  	  
 	  tSamples = buff[n+3];
+	  //block  = buff[n+3];
+	  // pcktCnt = buff[n+2];	  	  
+	  //tSamples = buff[n+4];
 
 	  if(!rcnt && !pcnt){
 	    RunSeqStartTime = tStamp;
@@ -1397,14 +1407,16 @@ void* CMData::FillRootTreeThreadIntegr(void *vargp)
 	  thisData->pckCntDiff.push_back(pcktCnt -  prevPckt);
 	  thisData->pckCnt.push_back(pcktCnt);
 
-	  cout << "pckt = " << pcktCnt << endl;
-	  cout << "block = " << block << endl;
-	  cout << "tstmp = " << tStamp << endl;
-	  cout << "tstmpdiff = " << tStamp -  ptStamp << endl;
-	  cout << "pcktdiff = " << pcktCnt -  prevPckt << endl;
+	  // cout << "pckt = " << pcktCnt << endl;
+	  // cout << "block = " << block << endl;
+	  // cout << "tstmp = " << tStamp << endl;
+	  // cout << "tstmpdiff = " << tStamp -  ptStamp << endl;
+	  // cout << "pcktdiff = " << pcktCnt -  prevPckt << endl;
 	  prevPckt = pcktCnt;
 
 	  for(int c = 0; c < 16; c++){
+
+
 	    ch_misc[c] = buff[n+c+4];
 	    //std::bitset<64> tmp(ch_misc[c]);
 	    //cout << "ch_misc = " << tmp << " or in hex: " << std::hex << ch_misc[c] << std::dec << endl;
@@ -1426,12 +1438,51 @@ void* CMData::FillRootTreeThreadIntegr(void *vargp)
 	    thisData->ch_NSamples[c].push_back(ch_snum[c]);
 	    
 	    ch_sum[c] = buff[n+c+84];
-	    //cout << "ch_sum in hex = " << std::hex << buff[n+c+36] << std::dec << endl;
 	    thisData->ch_Sum[c].push_back(ch_sum[c]*ADC_CONVERSION);
 	    
 	    ch_ssq[c] = buff[n+c+100];
 	    thisData->ch_SumSq[c].push_back(ch_ssq[c]*ADC_CONVERSION*ADC_CONVERSION);
 
+
+	    // ch_misc[c] = buff[n+c+4];
+	    // //std::bitset<64> tmp(ch_misc[c]);
+	    // //cout << "ch_misc = " << tmp << " or in hex: " << std::hex << ch_misc[c] << std::dec << endl;
+	    // ch_max[c] =  !(ch_misc[c] & 0x80000) ? (ch_misc[c] & 0xFFFFF) : (0xFFF00000 | (ch_misc[c] & 0xFFFFF));
+	    // ch_min[c] =  !((ch_misc[c] >> 20) & 0x80000) ? ((ch_misc[c] >> 20)& 0xFFFFF) : (0xFFF00000 | ((ch_misc[c] >> 20) & 0xFFFFF));
+	    // thisData->ch_max[c].push_back(ch_max[c]*ADC_CONVERSION);
+	    // thisData->ch_min[c].push_back(ch_min[c]*ADC_CONVERSION);
+
+	    // // ch_tsnum[c] = buff[n+c+20];
+	    // // thisData->ch_WindowNSamples[c].push_back(ch_tsnum[c]);
+
+	    // // ch_tsum[c] = buff[n+c+36];
+	    // // thisData->ch_WindowSum[c].push_back(ch_tsum[c]);
+	    
+	    // // ch_tssq[c] = buff[n+c+52];
+	    // // thisData->ch_WindowSumSq[c].push_back(ch_tssq[c]);
+
+	    // // ch_snum[c] = buff[n+c+68];
+	    // // thisData->ch_NSamples[c].push_back(ch_snum[c]);
+	    
+	    // // ch_sum[c] = buff[n+c+84];
+	    // // //cout << "ch_sum in hex = " << std::hex << buff[n+c+36] << std::dec << endl;
+	    // // thisData->ch_Sum[c].push_back(ch_sum[c]*ADC_CONVERSION);
+	    
+	    // // ch_ssq[c] = buff[n+c+100];
+	    // // thisData->ch_SumSq[c].push_back(ch_ssq[c]*ADC_CONVERSION*ADC_CONVERSION);
+
+	    // ch_snum[c] = buff[n+c+20];
+	    // thisData->ch_NSamples[c].push_back(ch_snum[c]);
+	    
+	    // ch_sum[c] = buff[n+c+36];
+	    // //cout << "ch_sum in hex = " << std::hex << buff[n+c+36] << std::dec << endl;
+	    // thisData->ch_Sum[c].push_back(ch_sum[c]*ADC_CONVERSION);
+	    
+	    // ch_ssq[c] = buff[n+c+52];
+	    // thisData->ch_SumSq[c].push_back(ch_ssq[c]*ADC_CONVERSION*ADC_CONVERSION);
+
+
+	    
 	    ch_std[c] = sqrt(ch_ssq[c]*ADC_CONVERSION*ADC_CONVERSION/ch_snum[c] - ch_sum[c]*ADC_CONVERSION*ch_sum[c]*ADC_CONVERSION/ch_snum[c]/ch_snum[c]);
 	    thisData->ch_Sig[c].push_back(ch_std[c]);
 	    
